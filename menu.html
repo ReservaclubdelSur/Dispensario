@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Club del Sur — Menú</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyB0Q1XEQKatOfGSfhJeB28Ym-8pFdo5sTg",
+  authDomain: "reservaclubdelsur.firebaseapp.com",
+  databaseURL: "https://reservaclubdelsur-default-rtdb.firebaseio.com",
+  projectId: "reservaclubdelsur",
+  storageBucket: "reservaclubdelsur.firebasestorage.app",
+  messagingSenderId: "906547471650",
+  appId: "1:906547471650:web:6303da7e6106d78d75f17b"
+};
+var db = null;
+try { firebase.initializeApp(firebaseConfig); db = firebase.database(); }
+catch(e){ console.warn('Firebase:', e); }
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+:root{
+  --bg:#f4f6f8;--surface:#fff;--surface2:#f8fafc;
+  --primary:#1e3a5f;--green:#16a34a;--green-bg:#f0fdf4;
+  --border:#e5e9ef;--border2:#cbd5e1;--muted:#64748b;--hint:#94a3b8;
+  --radius:10px;--radius-lg:14px;
+}
+body{background:var(--bg);color:#0f172a;padding-bottom:120px}
+.wrap{max-width:600px;margin:0 auto;padding:0 14px}
+
+header{background:var(--primary);color:#fff;padding:22px 0 26px;margin-bottom:-14px}
+header .wrap{display:flex;align-items:center;gap:12px}
+header h1{font-size:19px;font-weight:700;letter-spacing:-.2px}
+header p{font-size:12px;opacity:.75;margin-top:2px}
+.logo{font-size:30px}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card-h{padding:13px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px;display:flex;align-items:center;gap:7px}
+
+.prod{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)}
+.prod:last-child{border-bottom:none}
+.prod-info{flex:1;min-width:0}
+.prod-name{font-weight:600;font-size:15px}
+.prod-price{font-size:12px;color:var(--muted);margin-top:1px}
+.qty-box{display:flex;align-items:center;gap:6px}
+.qty-box input{width:64px;border:1.5px solid var(--border2);border-radius:var(--radius);padding:9px 8px;font-size:16px;font-family:inherit;text-align:center;outline:none;font-weight:600}
+.qty-box input:focus{border-color:var(--primary)}
+.qty-box span{font-size:12px;color:var(--hint);width:12px}
+.prod.activo{background:var(--green-bg)}
+
+.field{padding:11px 16px;border-bottom:1px solid var(--border)}
+.field:last-child{border-bottom:none}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.field input,.field textarea{width:100%;border:1.5px solid var(--border2);border-radius:var(--radius);padding:10px 12px;font-size:16px;font-family:inherit;outline:none}
+.field input:focus,.field textarea:focus{border-color:var(--primary)}
+.field textarea{resize:vertical;min-height:52px}
+
+.opts{display:flex;gap:9px;padding:12px 16px}
+.opt{flex:1;border:1.5px solid var(--border2);border-radius:var(--radius);padding:12px 8px;text-align:center;cursor:pointer;font-size:13px;font-weight:600;background:var(--surface);transition:.15s}
+.opt.on{border-color:var(--primary);background:var(--primary);color:#fff}
+
+.bar{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:12px 14px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -3px 14px rgba(0,0,0,.07);z-index:50}
+.bar-in{max-width:600px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.tot{flex:1}
+.tot-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.tot-v{font-size:23px;font-weight:800;color:var(--primary);line-height:1.15}
+.tot-sub{font-size:11px;color:var(--hint)}
+.send{background:var(--green);color:#fff;border:none;border-radius:var(--radius-lg);padding:15px 24px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap}
+.send:disabled{background:#cbd5e1;cursor:default}
+
+.msg{padding:34px 20px;text-align:center;color:var(--muted);font-size:14px}
+.ok{text-align:center;padding:46px 22px}
+.ok-ico{font-size:56px;margin-bottom:14px}
+.ok h2{font-size:21px;color:var(--green);margin-bottom:8px}
+.ok p{font-size:14px;color:var(--muted);line-height:1.6}
+.ok .rec{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-top:20px;text-align:left;font-size:13px;line-height:1.9}
+.foot{text-align:center;font-size:11px;color:var(--hint);padding:18px 14px 4px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="logo">🌿</span>
+    <div>
+      <h1>Club del Sur</h1>
+      <p>Menú de la semana</p>
+    </div>
+  </div>
+</header>
+
+<div class="wrap" id="app">
+  <div class="card"><div class="msg">Cargando menú…</div></div>
+</div>
+
+<div class="bar" id="bar" style="display:none">
+  <div class="bar-in">
+    <div class="tot">
+      <div class="tot-l">Total</div>
+      <div class="tot-v" id="total">$0</div>
+      <div class="tot-sub" id="totalSub"></div>
+    </div>
+    <button class="send" id="btnEnviar" onclick="irAPago()" disabled>Continuar al pago</button>
+  </div>
+</div>
+
+<script>
+const DB_PATH='dispensario';
+const WA_CLUB='56998150926'; // WhatsApp del club para renovaciones
+let productos=[], recetas=[], precioDelivery=5000;
+let qtys={}, conDelivery=true, socio=null;
+
+function fmt(n){return '$'+(n||0).toLocaleString('es-CL')}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function normRut(r){return String(r||'').replace(/[^0-9kK]/g,'').toUpperCase()}
+
+function parseFecha(val){
+  if(!val) return null;
+  const s=String(val).trim();
+  const m1=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if(m1) return new Date(parseInt(m1[3]),parseInt(m1[2])-1,parseInt(m1[1]));
+  if(/^\d{5}$/.test(s)){ const d=new Date((parseInt(s)-25569)*86400*1000); return isNaN(d)?null:d; }
+  const meses={enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,octubre:9,noviembre:10,diciembre:11};
+  const m2=s.toLowerCase().match(/^([a-záéíóú]+)[- ](\d{4})$/);
+  if(m2&&meses[m2[1]]!==undefined) return new Date(parseInt(m2[2]),meses[m2[1]],1);
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+function estadoReceta(fecha){
+  if(!fecha) return 'sin-fecha';
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const diff=Math.floor((fecha-hoy)/(1000*60*60*24));
+  if(diff<0) return 'vencida';
+  if(diff<=60) return 'urgente';
+  return 'vigente';
+}
+
+function cargar(){
+  if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo conectar. Revisa tu internet y recarga la página.</div></div>'; return; }
+  db.ref(DB_PATH).once('value').then(snap=>{
+    const d=snap.val()||{};
+    productos=(d.dds_prods||[]).filter(Boolean);
+    recetas=(d.dds_recetas||[]).filter(Boolean);
+    precioDelivery=d.dds_desp||5000;
+    render();
+  }).catch(()=>{
+    document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar. Intenta de nuevo en unos minutos.</div></div>';
+  });
+}
+
+function disponibles(){
+  // Manda el ✅ de Productos en la app. Las ocultas nunca se muestran.
+  return productos.filter(p=> !p.oculto && p.stock!==false );
+}
+
+function render(){
+  const disp=disponibles();
+  if(!disp.length){
+    document.getElementById('app').innerHTML='<div class="card"><div class="msg">Por ahora no hay productos disponibles.<br>Vuelve a revisar más tarde 🌿</div></div>';
+    return;
+  }
+  const filas=disp.map(p=>{
+    const activo=(qtys[p.id]||0)>0;
+    return '<div class="prod'+(activo?' activo':'')+'" id="prod-'+p.id+'">'
+      +'<div class="prod-info"><div class="prod-name">'+(p.emoji||'🌿')+' '+esc(p.name)+'</div>'
+      +'<div class="prod-price">'+fmt(p.price)+' c/u</div></div>'
+      +'<div class="qty-box"><input type="number" min="0" step="any" inputmode="decimal" placeholder="0" value="'+(qtys[p.id]||'')+'" oninput="setQty(\''+p.id+'\',this.value)"><span>g</span></div>'
+      +'</div>';
+  }).join('');
+
+  document.getElementById('app').innerHTML=
+     '<div class="card"><div class="card-h">🌱 Disponible esta semana</div>'+filas+'</div>'
+    +'<div class="card"><div class="card-h">📋 Datos de entrega</div>'
+      +'<div class="field"><label>Primer nombre y primer apellido</label><input id="fNombre" type="text" placeholder="Ej: Juan Pérez" oninput="calc()"></div>'
+      +'<div class="field"><label>RUT</label><input id="fRut" type="text" placeholder="12.345.678-9" oninput="calc()"></div>'
+      +'<div class="field"><label>Teléfono</label><input id="fTel" type="tel" inputmode="tel" placeholder="9 1234 5678" oninput="calc()"></div>'
+      +'<div class="field"><label>Dirección</label><input id="fDir" type="text" placeholder="Calle, número, depto" oninput="calc()"></div>'
+      +'<div class="field"><label>Comuna</label><input id="fCom" type="text" placeholder="Ej: La Florida" oninput="calc()"></div>'
+    +'</div>'
+    +'<div class="foot">🚚 Delivery '+fmt(precioDelivery)+' · incluido en el total<br>Los pedidos se reciben hasta el día de despacho 🌿</div>';
+
+  document.getElementById('bar').style.display='block';
+  calc();
+}
+
+function setQty(id,v){
+  const n=parseFloat(v)||0;
+  if(n>0) qtys[id]=n; else delete qtys[id];
+  const el=document.getElementById('prod-'+id);
+  if(el) el.className='prod'+(n>0?' activo':'');
+  calc();
+}
+
+function subtotal(){
+  let t=0;
+  productos.forEach(p=>{ if(qtys[p.id]) t+=qtys[p.id]*(p.price||0); });
+  return t;
+}
+
+function calc(){
+  const sub=subtotal();
+  const tot=sub+(sub>0?precioDelivery:0);
+  document.getElementById('total').textContent=fmt(tot);
+  const nItems=Object.keys(qtys).length;
+  document.getElementById('totalSub').textContent =
+    nItems? (nItems+(nItems===1?' producto':' productos')+' + delivery') : 'Elige tus productos';
+
+  const nom=(document.getElementById('fNombre')||{}).value||'';
+  const rut=(document.getElementById('fRut')||{}).value||'';
+  const tel=(document.getElementById('fTel')||{}).value||'';
+  const dir=(document.getElementById('fDir')||{}).value||'';
+  const listo = sub>0 && nom.trim().length>2 && normRut(rut).length>=8 && tel.replace(/\D/g,'').length>=8 && dir.trim().length>3;
+  document.getElementById('btnEnviar').disabled=!listo;
+}
+
+let pedidoPendiente=null;
+
+function irAPago(){
+  const rutIn=normRut(document.getElementById('fRut').value);
+  const nombreIn=document.getElementById('fNombre').value.trim();
+
+  // Verificar receta
+  let estado='sin-fecha', vence=null, nombreReceta='';
+  if(recetas.length){
+    const r=recetas.find(x=>normRut(x.rut)===rutIn);
+    if(r){
+      vence=parseFecha(r.vencimiento);
+      estado=estadoReceta(vence);
+      nombreReceta=r.nombre||'';
+    } else {
+      estado='no-existe';
+    }
+  }
+
+  if(estado==='vencida' || estado==='no-existe'){
+    bloqueo(estado, nombreReceta||nombreIn, vence);
+    return;
+  }
+
+  socio={rut:document.getElementById('fRut').value.trim(), estado:estado, vence:vence};
+  pantallaPago();
+}
+
+function bloqueo(motivo, nombre, f){
+  const wa='https://wa.me/'+WA_CLUB+'?text='+encodeURIComponent(
+    motivo==='vencida'
+      ? 'Hola! Soy '+(nombre||'')+'. Mi receta está vencida y quiero renovarla 🌿'
+      : 'Hola! Soy '+(nombre||'')+'. Quiero hacer un pedido pero mi RUT no aparece registrado 🌿');
+
+  const cuerpo = motivo==='vencida'
+    ? '<div class="ok-ico">🩺</div>'
+      +'<h2 style="color:#b45309">Tu receta está vencida</h2>'
+      +'<p>Hola '+esc(String(nombre||'').split(' ')[0])+'. Para poder dispensarte necesitamos tu receta al día.</p>'
+      +'<div class="rec" style="text-align:center">Venció el <strong>'+(f?f.toLocaleDateString('es-CL'):'—')+'</strong></div>'
+      +'<p style="margin-top:16px"><strong>Nosotros te ayudamos a renovarla</strong> 🙌<br>Es por videollamada y queda vigente por 1 año.</p>'
+    : '<div class="ok-ico">🔍</div>'
+      +'<h2 style="color:var(--primary)">No encontramos tu RUT</h2>'
+      +'<p>Puede que no esté bien escrito o que tu receta no esté cargada en el sistema.</p>'
+      +'<p style="margin-top:14px">Escríbenos y lo solucionamos 🙌</p>';
+
+  document.getElementById('bar').style.display='none';
+  document.getElementById('app').innerHTML=
+     '<div class="card"><div class="ok">'+cuerpo
+      +'<a href="'+wa+'" target="_blank" style="display:block;margin-top:20px;background:#25d366;color:#fff;text-decoration:none;border-radius:var(--radius-lg);padding:16px;font-size:15px;font-weight:700">💬 Escribir al club</a>'
+      +'<button onclick="volverMenu()" style="width:100%;margin-top:10px;background:none;border:none;color:var(--muted);padding:12px;font-size:13px;cursor:pointer;font-family:inherit">← Volver</button>'
+     +'</div></div>';
+  window.scrollTo(0,0);
+}
+
+function pantallaPago(){
+  const total=subtotal()+precioDelivery;
+  pedidoPendiente={
+    id:'web_'+Date.now(),
+    fecha:new Date().toISOString(),
+    nombre:document.getElementById('fNombre').value.trim(),
+    rut:socio.rut,
+    recetaEstado:socio.estado,
+    telefono:document.getElementById('fTel').value.trim(),
+    direccion:document.getElementById('fDir').value.trim(),
+    comuna:document.getElementById('fCom').value.trim(),
+    obs:'',
+    hasDesp:true,
+    qtys:Object.assign({},qtys),
+    total:total,
+    estado:'nuevo',
+    pagoDeclarado:true
+  };
+
+  const lista=productos.filter(x=>qtys[x.id]).map(x=>'<div style="display:flex;justify-content:space-between;padding:3px 0"><span>'+qtys[x.id]+'g '+esc(x.name)+'</span><span>'+fmt(qtys[x.id]*x.price)+'</span></div>').join('');
+
+  const avisoReceta = socio.estado==='urgente'
+    ? '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-lg);padding:13px 16px;font-size:13px;color:#92400e;line-height:1.6;margin-bottom:14px">'
+      +'🩺 <strong>Tu receta vence el '+(socio.vence?socio.vence.toLocaleDateString('es-CL'):'—')+'</strong><br>'
+      +'Puedes hacer este pedido con normalidad. Escríbenos y te ayudamos a renovarla antes de que venza 🌿'
+      +'</div>'
+    : '';
+
+  document.getElementById('bar').style.display='none';
+  document.getElementById('app').innerHTML=
+     avisoReceta
+    +'<div class="card"><div class="card-h">🧾 Resumen de tu pedido</div>'
+      +'<div style="padding:14px 16px;font-size:14px">'+lista
+      +'<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--muted)"><span>Delivery</span><span>'+fmt(precioDelivery)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:10px 0 0;margin-top:8px;border-top:1px solid var(--border);font-weight:800;font-size:18px"><span>Total</span><span style="color:var(--primary)">'+fmt(total)+'</span></div>'
+      +'</div></div>'
+
+    +'<div class="card" style="border-color:var(--green)">'
+      +'<div class="card-h" style="background:var(--green-bg);color:#166534">🏦 Transfiere para confirmar</div>'
+      +'<div style="padding:16px;font-size:14px;line-height:2">'
+        +'<strong>Club Del Sur</strong><br>'
+        +'RUT: 65.141.892-5<br>'
+        +'Banco Santander<br>'
+        +'Cuenta corriente: <strong>95457304</strong><br>'
+        +'contacto.clubdelsur2024@gmail.com'
+        +'<div style="background:var(--surface2);border:1px dashed var(--border2);border-radius:var(--radius);padding:14px;margin-top:14px;text-align:center">'
+          +'<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Monto a transferir</div>'
+          +'<div style="font-size:28px;font-weight:800;color:var(--primary);line-height:1.3">'+fmt(total)+'</div>'
+        +'</div>'
+        +'<button onclick="copiarDatos()" style="width:100%;margin-top:12px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:11px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">📋 Copiar datos de transferencia</button>'
+      +'</div>'
+    +'</div>'
+
+    +'<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-lg);padding:13px 16px;font-size:13px;color:#92400e;line-height:1.6;margin-bottom:14px">'
+      +'Tu pedido se confirma con la transferencia. Cuando ya la hayas hecho, aprieta el botón de abajo.'
+    +'</div>'
+
+    +'<button onclick="confirmarPago()" id="btnPagado" style="width:100%;background:var(--green);color:#fff;border:none;border-radius:var(--radius-lg);padding:17px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit">✅ Ya transferí — enviar pedido</button>'
+    +'<button onclick="volverMenu()" style="width:100%;margin-top:10px;background:none;border:none;color:var(--muted);padding:12px;font-size:13px;cursor:pointer;font-family:inherit">← Volver y editar el pedido</button>'
+    +'<div class="foot">Guarda tu comprobante por si lo necesitamos 🌿</div>';
+
+  window.scrollTo(0,0);
+}
+
+function copiarDatos(){
+  const txt='Club Del Sur\nRUT: 65.141.892-5\nBanco Santander\nCuenta corriente: 95457304\ncontacto.clubdelsur2024@gmail.com\nMonto: '+fmt(pedidoPendiente.total);
+  if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(()=>alert('Datos copiados ✅')); }
+  else alert(txt);
+}
+
+function volverMenu(){
+  document.getElementById('bar').style.display='block';
+  render();
+  window.scrollTo(0,0);
+}
+
+function confirmarPago(){
+  if(!pedidoPendiente) return;
+  const btn=document.getElementById('btnPagado');
+  btn.disabled=true; btn.textContent='Enviando…'; btn.style.background='#cbd5e1';
+
+  db.ref(DB_PATH+'/dds_pedidos_web/'+pedidoPendiente.id).set(JSON.parse(JSON.stringify(pedidoPendiente)))
+    .then(()=>gracias(pedidoPendiente))
+    .catch(()=>{
+      btn.disabled=false; btn.textContent='✅ Ya transferí — enviar pedido'; btn.style.background='var(--green)';
+      alert('No se pudo enviar. Revisa tu internet e intenta de nuevo.');
+    });
+}
+
+function gracias(p){
+  const lista=productos.filter(x=>p.qtys[x.id]).map(x=>'• '+p.qtys[x.id]+'g '+esc(x.name)).join('<br>');
+  document.getElementById('bar').style.display='none';
+  document.getElementById('app').innerHTML=
+     '<div class="card"><div class="ok">'
+      +'<div class="ok-ico">✅</div>'
+      +'<h2>¡Pedido confirmado!</h2>'
+      +'<p>Gracias '+esc(p.nombre.split(' ')[0])+'. Verificaremos tu transferencia<br>y te avisamos por WhatsApp antes del despacho.</p>'
+      +'<div class="rec"><strong>Tu pedido:</strong><br>'+lista
+        +'<br>🚚 Delivery a '+esc(p.direccion)
+        +'<br><strong>Total: '+fmt(p.total)+'</strong></div>'
+      +'</div></div>';
+  window.scrollTo(0,0);
+}
+
+cargar();
+</script>
+</body>
+</html>
