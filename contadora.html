@@ -63,6 +63,20 @@ header p{font-size:12px;opacity:.75;margin-top:2px}
 .kpi-l{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
 .kpi-v{font-size:20px;font-weight:800}
 .foot{text-align:center;font-size:11px;color:var(--hint);padding:18px 14px 4px}
+.resumen{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto}
+.r-item{flex:1;min-width:72px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:9px 10px;text-align:center}
+.r-item span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}
+.r-item strong{font-size:14px;font-weight:800}
+.prow{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.prow:last-child{border-bottom:none}
+.prow:active{background:var(--surface2)}
+.prow.pagado{background:var(--green-bg)}
+.pchk{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.prow.pagado .pchk{border:none}
+.pnom{flex:1;min-width:0;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow.pagado .pnom{color:var(--muted)}
+.pval{font-size:16px;font-weight:800;color:var(--primary);white-space:nowrap}
+.prow.pagado .pval{color:var(--green)}
 select{font-size:13px;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-family:inherit;background:var(--surface);outline:none}
 </style>
 </head>
@@ -143,7 +157,6 @@ function render(){
 function setTab(t){ tab=t; render(); }
 
 function renderPagos(){
-  // Lee la semana más reciente completa
   const toD=s=>{const p=String(s||'').split('-');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
   const wkSorted=[...weeks].sort((a,b)=>toD(b.label)-toD(a.label));
   const wk = wkSorted[0];
@@ -157,30 +170,55 @@ function renderPagos(){
   const falta=totalSemana-cobrado;
 
   const filas=rows.map((r,idx)=>{
-    const cepas=productos.filter(p=>(r.qtys||{})[p.id]>0).map(p=>r.qtys[p.id]+'g '+esc(p.name)).join(' · ')||'—';
     const val=rowTotal(r,desp);
     const pag=!!r.pagado;
-    return '<div class="ped">'
-      +'<div class="ped-top"><div><div class="ped-nom">'+esc(r.nombre||'—')+'</div>'
-        +'<div class="ped-fecha">'+(r.hasDesp!==false?'🚚 con delivery':'🏃 retiro')+'</div></div>'
-        +'<div class="ped-monto">'+fmt(val)+'</div></div>'
-      +'<div class="ped-items">'+cepas+'</div>'
-      +'<button class="a-val" style="background:'+(pag?'var(--green)':'var(--surface2)')+';color:'+(pag?'#fff':'var(--primary)')+';border:1px solid '+(pag?'var(--green)':'var(--border2)')+'" onclick="togglePago('+idx+')">'
-        +(pag?'✅ Pagado — toca para desmarcar':'⏳ Marcar como pagado')+'</button>'
+    return '<div class="prow'+(pag?' pagado':'')+'" onclick="togglePago('+idx+')">'
+      +'<div class="pchk">'+(pag?'✅':'')+'</div>'
+      +'<div class="pnom">'+esc(r.nombre||'—')+'</div>'
+      +'<div class="pval">'+fmt(val)+'</div>'
     +'</div>';
   }).join('');
 
-  return '<div class="card"><div class="kpi-grid">'
-      +'<div class="kpi"><div class="kpi-l">Total semana</div><div class="kpi-v">'+fmt(totalSemana)+'</div></div>'
-      +'<div class="kpi"><div class="kpi-l">Cobrado</div><div class="kpi-v" style="color:var(--green)">'+fmt(cobrado)+'</div></div>'
-      +'<div class="kpi"><div class="kpi-l">Falta cobrar</div><div class="kpi-v" style="color:'+(falta>0?'var(--red)':'var(--green)')+'">'+fmt(falta)+'</div></div>'
-      +'<div class="kpi"><div class="kpi-l">Pagados</div><div class="kpi-v">'+pagados+'/'+rows.length+'</div></div>'
-    +'</div></div>'
-    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
-      +'<button class="btn" style="background:var(--surface);color:var(--primary);border:1px solid var(--border2)" onclick="exportarPDF()">📄 PDF</button>'
-      +'<button class="btn" style="background:var(--surface);color:var(--primary);border:1px solid var(--border2)" onclick="exportarExcel()">📊 Excel</button>'
+  return '<div class="resumen">'
+      +'<div class="r-item"><span>Total</span><strong>'+fmt(totalSemana)+'</strong></div>'
+      +'<div class="r-item"><span>Cobrado</span><strong style="color:var(--green)">'+fmt(cobrado)+'</strong></div>'
+      +'<div class="r-item"><span>Falta</span><strong style="color:'+(falta>0?'var(--red)':'var(--green)')+'">'+fmt(falta)+'</strong></div>'
+      +'<div class="r-item"><span>Pagados</span><strong>'+pagados+'/'+rows.length+'</strong></div>'
     +'</div>'
-    +'<div class="card"><div class="card-h">💰 Semana '+esc(wk.label)+' ('+rows.length+' pedidos)</div>'+filas+'</div>';
+    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+      +'<button class="btn" style="background:var(--surface);color:var(--primary);border:1px solid var(--border2);padding:12px" onclick="exportarPDF()">📄 PDF</button>'
+      +'<button class="btn" style="background:var(--surface);color:var(--primary);border:1px solid var(--border2);padding:12px" onclick="exportarExcel()">📊 Excel</button>'
+    +'</div>'
+    +'<div class="card"><div class="card-h">💰 Semana '+esc(wk.label)+'</div>'+filas+'</div>'
+    +revisadaBox(wk.label, pagados, rows.length)
+    +'<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px 16px;line-height:1.6">Toca un pedido para marcarlo pagado. Para ver el detalle, exporta la semana.</div>';
+}
+
+function revisadaBox(label, pagados, total){
+  const rev=(data.dds_semana_revisada||{})[label];
+  if(rev){
+    const fecha=rev.fecha?new Date(rev.fecha).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+    return '<div style="background:var(--green-bg);border:1px solid #86efac;border-radius:var(--radius-lg);padding:14px 16px;margin:14px 0;text-align:center">'
+      +'<div style="font-size:15px;font-weight:700;color:#166534">✅ Semana marcada como revisada</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-top:3px">'+fecha+'</div>'
+      +'<button class="btn" style="background:var(--surface);color:var(--muted);border:1px solid var(--border2);padding:9px;margin-top:10px;font-size:12px" onclick="marcarRevisada(\''+esc(label)+'\',false)">Deshacer</button>'
+    +'</div>';
+  }
+  return '<div style="background:var(--amber-bg);border:1px solid #fde68a;border-radius:var(--radius-lg);padding:14px 16px;margin:14px 0;text-align:center">'
+    +'<div style="font-size:13px;color:#92400e;line-height:1.5;margin-bottom:10px">Cuando termines de cuadrar la semana con el banco, avísale al despacho:</div>'
+    +'<button class="btn" style="background:var(--green);padding:13px" onclick="marcarRevisada(\''+esc(label)+'\',true)">✅ Listo, revisé la semana</button>'
+  +'</div>';
+}
+
+function marcarRevisada(label, val){
+  if(!db) return;
+  if(val){
+    db.ref(DB_PATH+'/dds_semana_revisada/'+label).set({fecha:new Date().toISOString(), por:'Contadora'})
+      .then(()=>render()).catch(e=>alert('Error: '+e.message));
+  } else {
+    db.ref(DB_PATH+'/dds_semana_revisada/'+label).remove()
+      .then(()=>render()).catch(e=>alert('Error: '+e.message));
+  }
 }
 
 function semanaActualObj(){
