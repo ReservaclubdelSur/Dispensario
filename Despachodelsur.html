@@ -242,9 +242,9 @@ td.right{text-align:right;font-weight:600}
       <div class="nav-item" id="nav-pedidosweb"><span>📥</span>Pedidos por confirmar <span id="webBadge" style="display:none;background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:auto"></span></div>
       <div class="nav-item" id="nav-repartidor"><span>🚚</span>Repartidor</div>
       <div class="nav-item" id="nav-preparar"><span>📋</span>Preparar pedidos</div>
-      <div class="nav-item" id="nav-parsear"><span>📲</span>Parsear WhatsApp</div>
+      
       <div class="nav-item" id="nav-plantillas"><span>✏️</span>Plantillas WA</div>
-      <div class="nav-item" id="nav-difusion-lista"><span>📢</span>Lista difusión</div>
+      
       <div class="nav-item" id="nav-historial"><span>📋</span>Historial</div>
       <div class="nav-item" id="nav-periodos"><span>🗂️</span>Períodos</div>
       <div class="nav-section">Datos</div>
@@ -307,7 +307,7 @@ td.right{text-align:right;font-weight:600}
             <button class="btn" id="btnCopyDif">📋 Copiar difusión</button>
             <button class="btn btn-wa" id="btnWaDif">📱 Difusión WA</button>
             
-            <button class="btn" id="btnListaDif" style="background:#e8f5e9;border-color:#a5d6a7;color:#1b5e20">📋 Lista difusión</button>
+            
           </div>
         </div>
         <div class="kpi-row" id="kpis"></div>
@@ -3686,9 +3686,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('btnLimpiarPruebas').addEventListener('click',limpiarPruebasWeb);
   document.getElementById('btnRecargarWeb').addEventListener('click',renderPedidosWeb);
   document.getElementById('nav-preparar').addEventListener('click',()=>showTab('preparar'));
-  document.getElementById('nav-parsear').addEventListener('click',()=>showTab('parsear'));
+  
   document.getElementById('nav-plantillas').addEventListener('click',()=>showTab('plantillas'));
-  document.getElementById('nav-difusion-lista').addEventListener('click',()=>showTab('difusion-lista'));
+  
   document.getElementById('nav-periodos').addEventListener('click',()=>showTab('periodos'));
   document.getElementById('btnReorganizarPeriodos').addEventListener('click',reorganizarPeriodos);
   document.getElementById('btnCerrarPeriodo').addEventListener('click',()=>showModal(
@@ -3733,7 +3733,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('btnCopyDif').addEventListener('click',()=>navigator.clipboard.writeText(buildDifusion()).then(()=>toast('✅ Mensaje copiado')).catch(()=>toast('No se pudo copiar')));
   document.getElementById('btnWaDif').addEventListener('click',()=>window.open('https://wa.me/?text='+encodeURIComponent(buildDifusion()),'_blank'));
   
-  document.getElementById('btnListaDif').addEventListener('click',()=>showTab('difusion-lista'));
+  
   // Plantillas WA
   document.querySelectorAll('.tpl-tab').forEach(b=>b.addEventListener('click',()=>{
     tplActiva=b.dataset.tpl;renderPlantillasTab();
