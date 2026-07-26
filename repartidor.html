@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Ruta — Club del Sur</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyB0Q1XEQKatOfGSfhJeB28Ym-8pFdo5sTg",
+  authDomain: "reservaclubdelsur.firebaseapp.com",
+  databaseURL: "https://reservaclubdelsur-default-rtdb.firebaseio.com",
+  projectId: "reservaclubdelsur",
+  storageBucket: "reservaclubdelsur.firebasestorage.app",
+  messagingSenderId: "906547471650",
+  appId: "1:906547471650:web:6303da7e6106d78d75f17b"
+};
+var db=null;
+try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }catch(e){ console.warn(e); }
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+:root{--bg:#f4f6f8;--surface:#fff;--surface2:#f8fafc;--primary:#1e3a5f;--green:#16a34a;--green-bg:#f0fdf4;--border:#e5e9ef;--border2:#cbd5e1;--muted:#64748b;--hint:#94a3b8;--radius:10px;--radius-lg:14px}
+body{background:var(--bg);color:#0f172a;padding-bottom:40px}
+.wrap{max-width:600px;margin:0 auto;padding:0 14px}
+header{background:var(--primary);color:#fff;padding:14px 0;margin-bottom:14px}
+header .wrap{display:flex;align-items:center;gap:10px}
+header h1{font-size:16px;font-weight:700}
+header p{font-size:11px;opacity:.75;margin-top:1px}
+.logo{font-size:24px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card-h{padding:13px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:space-between}
+.field{padding:16px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.field input{width:100%;border:1.5px solid var(--border2);border-radius:var(--radius);padding:14px;font-size:17px;font-family:inherit;text-align:center;outline:none;letter-spacing:1px}
+.btn{width:100%;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-lg);padding:15px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.msg{padding:34px 20px;text-align:center;color:var(--muted);font-size:14px}
+.topcount{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;font-size:13px;font-weight:700;color:var(--primary);text-align:center}
+.lista{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:12px}
+.ent{display:flex;align-items:center;gap:11px;padding:11px 13px;border-bottom:1px solid var(--border);-webkit-tap-highlight-color:transparent}
+.ent:last-child{border-bottom:none}
+.ent.hecha{background:var(--green-bg)}
+.ent-chk{width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;cursor:pointer}
+.ent.hecha .ent-chk{background:transparent;font-size:20px}
+.ent-body{flex:1;min-width:0;cursor:pointer}
+.ent-line{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ent-nom{font-weight:700;font-size:15px;line-height:1.25}
+.ent.hecha .ent-nom{text-decoration:line-through;color:var(--muted)}
+.ent-dir{font-size:13px;color:#334155;line-height:1.25}
+.ent.hecha .ent-dir{color:var(--muted)}
+.ent-com{font-size:12px;color:var(--muted);margin-top:1px}
+.comuna-h{background:var(--primary);color:#fff;padding:8px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
+.comuna-n{background:rgba(255,255,255,.25);border-radius:99px;padding:1px 8px;font-size:11px}
+.ent-wa{flex-shrink:0;padding:6px;line-height:0;display:flex;align-items:center}
+.foot{text-align:center;font-size:11px;color:var(--hint);padding:14px 14px 4px}
+</style>
+</head>
+<body>
+<header><div class="wrap"><span class="logo">🚚</span><div><h1>Ruta de entregas</h1><p>Club del Sur</p></div></div></header>
+<div class="wrap" id="app"><div class="card"><div class="msg">Cargando…</div></div></div>
+
+<script>
+const DB_PATH='dispensario';
+const CLAVE='ruta2026';
+let productos=[], entregas=[], hechas={};
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+function initApp(){
+  if(sessionStorage.getItem('rep_ok')==='1'){ cargar(); }
+  else pantallaClave();
+}
+
+function pantallaClave(){
+  document.getElementById('app').innerHTML=
+    '<div class="card"><div class="card-h">🔒 Acceso repartidor</div>'
+    +'<div class="field"><label>Ingresa la clave</label>'
+    +'<input id="clave" type="password" inputmode="text" placeholder="••••••" onkeydown="if(event.key===\'Enter\')entrar()">'
+    +'<button class="btn" style="margin-top:12px" onclick="entrar()">Entrar</button></div></div>';
+  setTimeout(()=>{const e=document.getElementById('clave');if(e)e.focus();},200);
+}
+
+function entrar(){
+  const v=(document.getElementById('clave').value||'').trim();
+  if(v===CLAVE){ sessionStorage.setItem('rep_ok','1'); cargar(); }
+  else { const i=document.getElementById('clave'); i.value=''; i.placeholder='Clave incorrecta'; i.style.borderColor='#e74c3c'; }
+}
+
+function cargar(){
+  if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">Sin conexión. Revisa tu internet.</div></div>'; return; }
+  document.getElementById('app').innerHTML='<div class="card"><div class="msg">Cargando ruta…</div></div>';
+  db.ref(DB_PATH).once('value').then(snap=>{
+    const d=snap.val()||{};
+    productos=(d.dds_prods||[]).filter(Boolean);
+    // semana más reciente
+    const wk=(d.dds_weeks||[]).filter(Boolean).map(w=>({...w,rows:(w.rows||[]).filter(Boolean)}));
+    const toD=s=>{const p=String(s||'').split('-');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
+    const actual = wk.length ? [...wk].sort((a,b)=>toD(b.label)-toD(a.label))[0] : null;
+    // filas de la semana que tengan delivery
+    entregas = actual ? (actual.rows||[]).filter(r=>r.hasDesp!==false) : [];
+    // estado de entregado (compartido)
+    hechas=d.dds_entregas_hechas||{};
+    entregas.sort((a,b)=>(a.comuna||'').localeCompare(b.comuna||''));
+    render();
+  }).catch(()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar. Intenta de nuevo.</div></div>'; });
+}
+
+function render(){
+  if(!entregas.length){
+    document.getElementById('app').innerHTML='<div class="card"><div class="msg">No hay entregas por ahora 🌿</div></div>';
+    return;
+  }
+  const total=entregas.length;
+  const done=entregas.filter(e=>hechas[e.id]).length;
+
+  // Agrupar por comuna
+  let numGlobal=0;
+  const grupos={};
+  entregas.forEach(e=>{
+    const c=(e.comuna||'Sin comuna').trim()||'Sin comuna';
+    if(!grupos[c]) grupos[c]=[];
+    grupos[c].push(e);
+  });
+
+  const filas=Object.keys(grupos).map(comuna=>{
+    const items=grupos[comuna].map(e=>{
+      numGlobal++;
+      const hecha=!!hechas[e.id];
+      const tel=(e.telefono||'').replace(/\D/g,'');
+      return '<div class="ent'+(hecha?' hecha':'')+'">'
+        +'<div class="ent-chk" onclick="marcar(\''+e.id+'\')">'+(hecha?'✅':numGlobal)+'</div>'
+        +'<div class="ent-body" onclick="marcar(\''+e.id+'\')">'
+          +'<div class="ent-line">'
+            +'<span class="ent-nom">'+esc(e.nombre||'—')+'</span>'
+            +'<span class="ent-dir">'+esc(e.direccion||'')+'</span>'
+          +'</div>'
+        +'</div>'
+        +(tel?'<a class="ent-wa" href="tel:'+tel+'" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" width="22" height="22" fill="#25d366"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></a>':'')
+      +'</div>';
+    }).join('');
+    return '<div class="comuna-h">'+esc(comuna)+' <span class="comuna-n">'+grupos[comuna].length+'</span></div>'+items;
+  }).join('');
+
+  document.getElementById('app').innerHTML=
+    '<div class="topcount">📦 '+done+' de '+total+' entregadas</div>'
+    +'<div class="lista">'+filas+'</div>'
+    +'<div style="text-align:center"><button onclick="cargar()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:600;cursor:pointer;padding:12px">🔄 Actualizar</button></div>'
+    +'<div class="foot">Toca una entrega para marcarla ✅</div>';
+}
+
+function marcar(id){
+  hechas[id]=!hechas[id];
+  if(!hechas[id]) delete hechas[id];
+  if(db) db.ref(DB_PATH+'/dds_entregas_hechas').set(hechas).catch(()=>{});
+  render();
+}
+
+initApp();
+</script>
+</body>
+</html>
