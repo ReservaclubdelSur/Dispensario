@@ -1150,7 +1150,23 @@ function renderRows(){
   renderAvisoRevisada();
 }
 
+let _avisoRevListen=false;
 function renderAvisoRevisada(){
+  const cont=document.getElementById('avisoRevisada'); if(!cont) return;
+  const wk=cw(); if(!wk){ cont.innerHTML=''; return; }
+  if(!db && typeof initFirebase==='function') initFirebase();
+  if(!db){ cont.innerHTML=''; return; }
+  // pintar una vez con lo que haya
+  pintarAvisoRevisada();
+  // montar escucha en tiempo real (una sola vez)
+  if(!_avisoRevListen){
+    _avisoRevListen=true;
+    db.ref(DB_PATH+'/dds_semana_revisada').on('value', ()=>pintarAvisoRevisada());
+    db.ref(DB_PATH+'/dds_pedidos_web').on('value', ()=>pintarAvisoRevisada());
+  }
+}
+
+function pintarAvisoRevisada(){
   const cont=document.getElementById('avisoRevisada'); if(!cont) return;
   const wk=cw(); if(!wk){ cont.innerHTML=''; return; }
   if(!db){ cont.innerHTML=''; return; }
