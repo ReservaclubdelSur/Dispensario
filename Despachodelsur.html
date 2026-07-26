@@ -239,7 +239,8 @@ td.right{text-align:right;font-weight:600}
     <nav class="sidebar-nav">
       <div class="nav-section">Gestión</div>
       <div class="nav-item on" id="nav-pedidos"><span>📦</span>Pedidos</div>
-      <div class="nav-item" id="nav-pedidosweb"><span>📥</span>Pedidos web <span id="webBadge" style="display:none;background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:auto"></span></div>
+      <div class="nav-item" id="nav-pedidosweb"><span>📥</span>Pedidos por confirmar <span id="webBadge" style="display:none;background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:auto"></span></div>
+      <div class="nav-item" id="nav-repartidor"><span>🚚</span>Repartidor</div>
       <div class="nav-item" id="nav-preparar"><span>📋</span>Preparar pedidos</div>
       <div class="nav-item" id="nav-parsear"><span>📲</span>Parsear WhatsApp</div>
       <div class="nav-item" id="nav-plantillas"><span>✏️</span>Plantillas WA</div>
@@ -304,7 +305,7 @@ td.right{text-align:right;font-weight:600}
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn" id="btnCopyDif">📋 Copiar difusión</button>
             <button class="btn btn-wa" id="btnWaDif">📱 Difusión WA</button>
-            <button class="btn btn-warn" id="btnRuta">🚚 Ruta al repartidor</button>
+            
             <button class="btn" id="btnListaDif" style="background:#e8f5e9;border-color:#a5d6a7;color:#1b5e20">📋 Lista difusión</button>
           </div>
         </div>
@@ -328,12 +329,31 @@ td.right{text-align:right;font-weight:600}
         <div class="gram-bar" id="gramBar"></div>
       </div>
 
-      <!-- PEDIDOS WEB -->
+      <!-- REPARTIDOR -->
+      <div id="t-repartidor" class="view">
+        <div style="max-width:860px">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-header-title">🚚 Ruta del repartidor</span>
+              <div style="display:flex;gap:8px">
+                <button class="btn" id="btnLimpiarPruebas" style="font-size:12px">🧹 Limpiar pruebas</button>
+                <button class="btn" id="btnRecargarRuta">🔄 Actualizar</button>
+              </div>
+            </div>
+            <div style="padding:10px 18px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)">
+              Lo mismo que ve el repartidor en su página. Pedidos confirmados de la semana.
+            </div>
+            <div id="rutaList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PEDIDOS POR CONFIRMAR -->
       <div id="t-pedidosweb" class="view">
         <div style="max-width:860px">
           <div class="panel">
             <div class="panel-header">
-              <span class="panel-header-title">📥 Pedidos desde la web</span>
+              <span class="panel-header-title">📥 Pedidos por confirmar</span>
               <button class="btn" id="btnRecargarWeb">🔄 Actualizar</button>
             </div>
             <div style="padding:10px 18px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)">
@@ -965,7 +985,7 @@ function showModal(title,msg,onConfirm,confirmLabel='Confirmar',infoHtml=''){
 function closeModal(){document.getElementById('modalBg').classList.remove('on');}
 
 // ── TABS ──────────────────────────────────────────────────────────
-const TAB_TITLES={pedidos:'Pedidos de la semana',pedidosweb:'Pedidos desde la web',preparar:'Preparar pedidos',parsear:'Parsear mensaje WhatsApp',plantillas:'Plantillas de WhatsApp','difusion-lista':'Lista de difusión',periodos:'Períodos',historial:'Historial de semanas','historial-cliente':'Historial por cliente',socios:'Nuevos Socios',clientes:'Base de clientes',recetas:'Control de recetas',stock:'Control de stock',stats:'Estadísticas',importar:'Importar desde Excel',config:'Configuración',backup:'Backup de datos'};
+const TAB_TITLES={pedidos:'Pedidos de la semana',pedidosweb:'Pedidos por confirmar',repartidor:'Ruta del repartidor',preparar:'Preparar pedidos',parsear:'Parsear mensaje WhatsApp',plantillas:'Plantillas de WhatsApp','difusion-lista':'Lista de difusión',periodos:'Períodos',historial:'Historial de semanas','historial-cliente':'Historial por cliente',socios:'Nuevos Socios',clientes:'Base de clientes',recetas:'Control de recetas',stock:'Control de stock',stats:'Estadísticas',importar:'Importar desde Excel',config:'Configuración',backup:'Backup de datos'};
 function showTab(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
@@ -979,6 +999,7 @@ function showTab(name){
   if(name==='periodos')renderPeriodos();
   if(name==='difusion-lista')renderDifusionLista();
   if(name==='pedidosweb')renderPedidosWeb();
+  if(name==='repartidor')renderRutaRepartidor();
   if(name==='preparar')renderPreparar();
   if(name==='historial-cliente'){const el=document.getElementById('hcSearch');if(el)el.value='';renderHistorialCliente();}
   if(name==='socios')renderSocios();
@@ -1335,6 +1356,68 @@ function exportarResumen(){
   showModal('Exportar resumen — '+cw().label,'',()=>{},'',html);
   document.getElementById('modalConfirmBtn').style.display='none';
 }
+function limpiarPruebasWeb(){
+  showModal('Limpiar pedidos de prueba','⚠️ Esto borra <strong>TODOS</strong> los pedidos que llegaron del menú web (los de prueba y los pendientes). Los que ya agregaste a tus semanas NO se tocan. ¿Continuar?',()=>{
+    if(!db){toast('⚠️ Sin conexión');return;}
+    db.ref(DB_PATH+'/dds_pedidos_web').remove().then(()=>{
+      db.ref(DB_PATH+'/dds_entregas_hechas').remove().catch(()=>{});
+      rutaEntregas=[]; pedidosWeb=[]; updateWebBadge();
+      pintarRuta();
+      toast('✅ Pedidos web limpiados');
+    }).catch(e=>toast('Error: '+e.message));
+  },'Sí, limpiar todo');
+}
+
+// ── RUTA REPARTIDOR (vista admin) ─────────────────────────────────
+let rutaEntregas=[], rutaHechas={};
+
+function renderRutaRepartidor(){
+  const list=document.getElementById('rutaList'); if(!list) return;
+  if(!db && typeof initFirebase==='function') initFirebase();
+  const wk=cw();
+  if(!wk||!wk.rows.length){ list.innerHTML='<div class="empty" style="padding:2rem">Sin pedidos en la semana actual 🌿</div>'; return; }
+  // Solo los que tienen delivery
+  rutaEntregas=wk.rows.filter(r=>r.hasDesp!==false);
+  // estado de entregado (compartido con la página del repartidor)
+  if(db){
+    db.ref(DB_PATH+'/dds_entregas_hechas').once('value').then(snap=>{
+      rutaHechas=snap.val()||{};
+      rutaEntregas.sort((a,b)=>(a.comuna||'').localeCompare(b.comuna||''));
+      pintarRuta();
+    }).catch(()=>{ rutaHechas={}; pintarRuta(); });
+  } else {
+    rutaHechas={}; pintarRuta();
+  }
+}
+
+function pintarRuta(){
+  const list=document.getElementById('rutaList'); if(!list) return;
+  if(!rutaEntregas.length){
+    list.innerHTML='<div class="empty" style="padding:2rem">Sin entregas confirmadas todavía 🌿</div>';
+    return;
+  }
+  const total=rutaEntregas.length;
+  const done=rutaEntregas.filter(e=>rutaHechas[e.id]).length;
+  list.innerHTML=
+    '<div style="padding:12px 18px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:13px;font-weight:600">📦 '+total+' entregas · '+done+' listas</div>'
+    +rutaEntregas.map((e,i)=>{
+      const hecha=!!rutaHechas[e.id];
+      const tel=(e.telefono||'').replace(/\D/g,'');
+      return '<div style="padding:14px 18px;border-bottom:1px solid var(--border);'+(hecha?'opacity:.5':'')+'">'
+        +'<div style="display:flex;align-items:flex-start;gap:10px">'
+          +'<div style="background:var(--primary);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</div>'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-weight:700;font-size:15px;'+(hecha?'text-decoration:line-through':'')+'">'+esc(e.nombre||'—')+'</div>'
+            +'<div style="font-size:12px;color:var(--muted);margin-top:2px">📍 '+esc(e.direccion||'—')+(e.comuna?', '+esc(e.comuna):'')+'</div>'
+            +(tel?'<div style="font-size:12px;color:var(--muted)">📱 '+esc(e.telefono)+'</div>':'')
+            +'<div style="font-size:12px;color:var(--hint);margin-top:6px">📦 1 paquete</div>'
+          +'</div>'
+          +'<span style="font-size:18px">'+(hecha?'✅':'⏳')+'</span>'
+        +'</div>'
+      +'</div>';
+    }).join('');
+}
+
 // ── PEDIDOS WEB ───────────────────────────────────────────────────
 let pedidosWeb = [];
 
@@ -1343,7 +1426,7 @@ function cargarPedidosWeb(cb){
   if(!db){ pedidosWeb=[]; if(cb)cb(); return; }
   db.ref(DB_PATH+'/dds_pedidos_web').once('value').then(snap=>{
     const d = snap.val()||{};
-    pedidosWeb = Object.values(d).filter(Boolean).filter(p=>p.estado!=='agregado');
+    pedidosWeb = Object.values(d).filter(Boolean).filter(p=>p.estado!=='agregado'&&p.estado!=='confirmado'&&p.estado!=='descartado');
     pedidosWeb.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
     updateWebBadge();
     if(cb)cb();
@@ -1373,6 +1456,7 @@ function renderPedidosWeb(){
         +'<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
           +'<div style="flex:1;min-width:180px">'
             +'<div style="font-weight:700;font-size:15px">'+esc(p.nombre||'—')
+              +(p.recetaEstado==='urgente'?' <span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:99px;font-weight:600">🩺 receta por vencer</span>':'')
               +(p.pagoDeclarado?' <span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 7px;border-radius:99px;font-weight:600">💰 dice que transfirió</span>':'')
               +(yaExiste?' <span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:99px;font-weight:600">ya está en la semana</span>':'')
             +'</div>'
@@ -1384,7 +1468,7 @@ function renderPedidosWeb(){
         +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+items+'</div>'
         +(p.obs?'<div style="font-size:11px;color:#92400e;background:#fffbeb;padding:6px 10px;border-radius:var(--radius);margin-bottom:10px">📝 '+esc(p.obs)+'</div>':'')
         +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
-          +'<button class="btn btn-primary" style="font-size:12px" onclick="agregarPedidoWeb(\''+p.id+'\')">➕ Agregar a la semana</button>'
+          +'<button class="btn btn-primary" style="font-size:12px" onclick="agregarPedidoWeb(\''+p.id+'\')">✅ Confirmar pedido</button>'
           +'<button class="btn btn-danger" style="font-size:12px" onclick="descartarPedidoWeb(\''+p.id+'\')">🗑 Descartar</button>'
         +'</div>'
       +'</div>';
@@ -1405,19 +1489,31 @@ function agregarPedidoWeb(id){
     direccion:p.direccion||'',
     qtys:qtys,
     hasDesp:p.hasDesp!==false,
-    pagado:false,
+    pagado:true,
     obs:p.obs||''
   });
   saveAll();
-  marcarWebAgregado(id);
+  // Marcar confirmado en Firebase con la semana, para que le llegue al repartidor
+  if(db) db.ref(DB_PATH+'/dds_pedidos_web/'+id).update({
+    estado:'confirmado',
+    semanaLabel:wk.label,
+    confirmadoPor:'Admin',
+    confirmadoEn:new Date().toISOString()
+  }).catch(()=>{});
+  pedidosWeb=pedidosWeb.filter(x=>x.id!==id);
+  updateWebBadge();
+  renderPedidosWeb();
   renderRows();
-  toast('✅ '+p.nombre+' agregado a la semana '+wk.label);
+  toast('✅ '+p.nombre+' confirmado y enviado al repartidor');
 }
 
 function descartarPedidoWeb(id){
   const p=pedidosWeb.find(x=>x.id===id); if(!p) return;
   showModal('Descartar pedido','¿Descartar el pedido de <strong>'+esc(p.nombre)+'</strong>? No se agregará a ninguna semana.',()=>{
-    marcarWebAgregado(id);
+    if(db) db.ref(DB_PATH+'/dds_pedidos_web/'+id+'/estado').set('descartado').catch(()=>{});
+    pedidosWeb=pedidosWeb.filter(x=>x.id!==id);
+    updateWebBadge();
+    renderPedidosWeb();
     toast('Pedido descartado');
   },'Descartar');
 }
@@ -3562,6 +3658,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('btnForzarSync').addEventListener('click',forzarSync);
   document.getElementById('nav-pedidos').addEventListener('click',()=>showTab('pedidos'));
   document.getElementById('nav-pedidosweb').addEventListener('click',()=>showTab('pedidosweb'));
+  document.getElementById('nav-repartidor').addEventListener('click',()=>showTab('repartidor'));
+  document.getElementById('btnRecargarRuta').addEventListener('click',renderRutaRepartidor);
+  document.getElementById('btnLimpiarPruebas').addEventListener('click',limpiarPruebasWeb);
   document.getElementById('btnRecargarWeb').addEventListener('click',renderPedidosWeb);
   document.getElementById('nav-preparar').addEventListener('click',()=>showTab('preparar'));
   document.getElementById('nav-parsear').addEventListener('click',()=>showTab('parsear'));
@@ -3610,7 +3709,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Acciones rapidas
   document.getElementById('btnCopyDif').addEventListener('click',()=>navigator.clipboard.writeText(buildDifusion()).then(()=>toast('✅ Mensaje copiado')).catch(()=>toast('No se pudo copiar')));
   document.getElementById('btnWaDif').addEventListener('click',()=>window.open('https://wa.me/?text='+encodeURIComponent(buildDifusion()),'_blank'));
-  document.getElementById('btnRuta').addEventListener('click',()=>{const msg=buildRuta();if(!msg){toast('⚠️ No hay pedidos con delivery');return;}const tel=repartidorTel.replace(/\D/g,'');window.open((tel?'https://wa.me/56'+tel:'https://wa.me/')+'?text='+encodeURIComponent(msg),'_blank');});
+  
   document.getElementById('btnListaDif').addEventListener('click',()=>showTab('difusion-lista'));
   // Plantillas WA
   document.querySelectorAll('.tpl-tab').forEach(b=>b.addEventListener('click',()=>{
