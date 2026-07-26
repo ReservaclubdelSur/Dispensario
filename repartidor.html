@@ -93,20 +93,18 @@ function entrar(){
 function cargar(){
   if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">Sin conexión. Revisa tu internet.</div></div>'; return; }
   document.getElementById('app').innerHTML='<div class="card"><div class="msg">Cargando ruta…</div></div>';
-  db.ref(DB_PATH).once('value').then(snap=>{
+  // Escucha en tiempo real: cualquier cambio se refleja solo
+  db.ref(DB_PATH).on('value', snap=>{
     const d=snap.val()||{};
     productos=(d.dds_prods||[]).filter(Boolean);
-    // semana más reciente
     const wk=(d.dds_weeks||[]).filter(Boolean).map(w=>({...w,rows:(w.rows||[]).filter(Boolean)}));
     const toD=s=>{const p=String(s||'').split('-');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
     const actual = wk.length ? [...wk].sort((a,b)=>toD(b.label)-toD(a.label))[0] : null;
-    // filas de la semana que tengan delivery
     entregas = actual ? (actual.rows||[]).filter(r=>r.hasDesp!==false) : [];
-    // estado de entregado (compartido)
     hechas=d.dds_entregas_hechas||{};
     entregas.sort((a,b)=>(a.comuna||'').localeCompare(b.comuna||''));
     render();
-  }).catch(()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar. Intenta de nuevo.</div></div>'; });
+  }, ()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar. Intenta de nuevo.</div></div>'; });
 }
 
 function render(){
