@@ -1431,9 +1431,24 @@ function limpiarPruebasWeb(){
 function renderVistaPagos(){
   const list=document.getElementById('pagosList'); if(!list) return;
   const wk=cw();
-  if(!wk||!wk.rows.length){ list.innerHTML='<div class="empty" style="padding:2rem">Sin pedidos en la semana actual 🌿</div>'; return; }
-  const desp=despPrice;
-  const rows=wk.rows;
+  if(!wk){ list.innerHTML='<div class="empty" style="padding:2rem">Sin semana actual 🌿</div>'; return; }
+  if(!db && typeof initFirebase==='function') initFirebase();
+  if(!db){ pintarVistaPagos(wk.rows||[]); return; }
+  list.innerHTML='<div class="empty" style="padding:1.5rem">Consultando…</div>';
+  const wkIndex=weeks.findIndex(w=>w.label===wk.label);
+  if(wkIndex<0){ pintarVistaPagos(wk.rows||[]); return; }
+  db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').once('value').then(snap=>{
+    let rowsNube=snap.val();
+    rowsNube=Array.isArray(rowsNube)?rowsNube.filter(Boolean):(rowsNube?Object.values(rowsNube).filter(Boolean):[]);
+    // reflejar en memoria para que el resto de la app también quede al día
+    wk.rows=rowsNube; lsSet('dds_weeks', weeks);
+    pintarVistaPagos(rowsNube);
+  }).catch(()=>pintarVistaPagos(wk.rows||[]));
+}
+
+function pintarVistaPagos(rows){
+  const list=document.getElementById('pagosList'); if(!list) return;
+  if(!rows.length){ list.innerHTML='<div class="empty" style="padding:2rem">Sin pedidos en la semana actual 🌿</div>'; return; }
   const pagados=rows.filter(r=>r.pagado).length;
   const totalSemana=rows.reduce((a,r)=>a+rowTotal(r),0);
   const cobrado=rows.filter(r=>r.pagado).reduce((a,r)=>a+rowTotal(r),0);
