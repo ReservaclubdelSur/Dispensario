@@ -1512,7 +1512,7 @@ function agregarPedidoWeb(id){
     direccion:p.direccion||'',
     qtys:qtys,
     hasDesp:p.hasDesp!==false,
-    pagado:true,
+    pagado:false,
     obs:p.obs||''
   });
   saveAll();
@@ -1527,7 +1527,7 @@ function agregarPedidoWeb(id){
   updateWebBadge();
   renderPedidosWeb();
   renderRows();
-  toast('✅ '+p.nombre+' confirmado y enviado al repartidor');
+  toast('✅ '+p.nombre+' enviado al repartidor · falta validar el pago');
 }
 
 function descartarPedidoWeb(id){
