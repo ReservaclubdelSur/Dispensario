@@ -169,10 +169,10 @@ function renderPagos(){
   const cobrado=rows.filter(r=>r.pagado).reduce((a,r)=>a+rowTotal(r,desp),0);
   const falta=totalSemana-cobrado;
 
-  const filas=rows.map((r,idx)=>{
+  const filas=rows.map((r)=>{
     const val=rowTotal(r,desp);
     const pag=!!r.pagado;
-    return '<div class="prow'+(pag?' pagado':'')+'" onclick="togglePago('+idx+')">'
+    return '<div class="prow'+(pag?' pagado':'')+'" onclick="togglePago(\''+esc(r.id)+'\')">'
       +'<div class="pchk">'+(pag?'✅':'')+'</div>'
       +'<div class="pnom">'+esc(r.nombre||'—')+'</div>'
       +'<div class="pval">'+fmt(val)+'</div>'
@@ -249,13 +249,15 @@ function semanaActualObj(){
   return [...weeks].sort((a,b)=>toD(b.label)-toD(a.label))[0];
 }
 
-function togglePago(idx){
+function togglePago(rowId){
   const wk=semanaActualObj(); if(!wk) return;
   const wkIndex=weeks.findIndex(w=>w.label===wk.label);
   if(wkIndex<0) return;
+  const idx=(wk.rows||[]).findIndex(r=>String(r.id)===String(rowId));
+  if(idx<0) return;
   const r=wk.rows[idx]; if(!r) return;
   r.pagado=!r.pagado;
-  // guardar solo esa fila en Firebase
+  // guardar solo esa fila en Firebase (por índice real actual)
   db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows/'+idx+'/pagado').set(!!r.pagado)
     .then(()=>render())
     .catch(e=>alert('Error: '+e.message));
