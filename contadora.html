@@ -197,7 +197,21 @@ function renderPagos(){
 function revisadaBox(label, pagados, total){
   const rev=(data.dds_semana_revisada||{})[label];
   // ¿entraron pedidos nuevos desde que marcó revisada?
-  const hayNuevos = rev && typeof rev.nPedidos==='number' && total>rev.nPedidos;
+  // Método 1: por cantidad guardada. Método 2 (respaldo): comparar contadores.
+  let hayNuevos=false;
+  if(rev){
+    if(typeof rev.nPedidos==='number'){
+      hayNuevos = total > rev.nPedidos;
+    }
+    // respaldo: si algún pedido web se confirmó después de la marca
+    if(!hayNuevos && rev.fecha){
+      const tMarca=new Date(rev.fecha).getTime();
+      const web=data.dds_pedidos_web||{};
+      hayNuevos=Object.values(web).filter(Boolean).some(p=>
+        p.estado==='confirmado' && p.semanaLabel===label && p.confirmadoEn && new Date(p.confirmadoEn).getTime()>tMarca
+      );
+    }
+  }
 
   if(rev && !hayNuevos){
     const fecha=rev.fecha?new Date(rev.fecha).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
