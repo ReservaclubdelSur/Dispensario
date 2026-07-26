@@ -1522,7 +1522,7 @@ function agregarPedidoWeb(id){
   const wk=cw();
   const qtys={};
   products.forEach(x=>qtys[x.id]=(p.qtys||{})[x.id]||0);
-  wk.rows.push({
+  const nuevaFila={
     id:uid(),
     nombre:p.nombre||'',
     telefono:p.telefono||'',
@@ -1532,20 +1532,40 @@ function agregarPedidoWeb(id){
     hasDesp:p.hasDesp!==false,
     pagado:false,
     obs:p.obs||''
-  });
-  saveAll();
-  // Marcar confirmado en Firebase con la semana, para que le llegue al repartidor
-  if(db) db.ref(DB_PATH+'/dds_pedidos_web/'+id).update({
-    estado:'confirmado',
-    semanaLabel:wk.label,
-    confirmadoPor:'Admin',
-    confirmadoEn:new Date().toISOString()
-  }).catch(()=>{});
-  pedidosWeb=pedidosWeb.filter(x=>x.id!==id);
-  updateWebBadge();
-  renderPedidosWeb();
-  renderRows();
-  toast('✅ '+p.nombre+' enviado al repartidor · falta validar el pago');
+  };
+  const wkIndex=weeks.findIndex(w=>w.label===wk.label);
+
+  const confirmarWeb=()=>{
+    if(db) db.ref(DB_PATH+'/dds_pedidos_web/'+id).update({
+      estado:'confirmado', semanaLabel:wk.label,
+      confirmadoPor:'Admin', confirmadoEn:new Date().toISOString()
+    }).catch(()=>{});
+    pedidosWeb=pedidosWeb.filter(x=>x.id!==id);
+    updateWebBadge();
+    renderPedidosWeb();
+    toast('✅ '+p.nombre+' enviado al repartidor · falta validar el pago');
+  };
+
+  if(db && wkIndex>=0){
+    // Releer las filas frescas de la nube para no pisar pagos recientes de la contadora
+    db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').once('value').then(snap=>{
+      let rowsNube=snap.val();
+      rowsNube=Array.isArray(rowsNube)?rowsNube.filter(Boolean):(rowsNube?Object.values(rowsNube).filter(Boolean):[]);
+      rowsNube.push(nuevaFila);
+      // reflejar en memoria local
+      wk.rows=rowsNube;
+      lsSet('dds_weeks', weeks);
+      // guardar el arreglo completo ya fusionado
+      db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').set(JSON.parse(JSON.stringify(rowsNube)))
+        .then(()=>{ renderRows(); confirmarWeb(); })
+        .catch(()=>{ renderRows(); confirmarWeb(); });
+    }).catch(()=>{
+      // si no se pudo releer, agregar local y seguir
+      wk.rows.push(nuevaFila); lsSet('dds_weeks', weeks); renderRows(); confirmarWeb();
+    });
+  } else {
+    wk.rows.push(nuevaFila); lsSet('dds_weeks', weeks); renderRows(); confirmarWeb();
+  }
 }
 
 function descartarPedidoWeb(id){
