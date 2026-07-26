@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Contadora — Club del Sur</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyB0Q1XEQKatOfGSfhJeB28Ym-8pFdo5sTg",
+  authDomain: "reservaclubdelsur.firebaseapp.com",
+  databaseURL: "https://reservaclubdelsur-default-rtdb.firebaseio.com",
+  projectId: "reservaclubdelsur",
+  storageBucket: "reservaclubdelsur.firebasestorage.app",
+  messagingSenderId: "906547471650",
+  appId: "1:906547471650:web:6303da7e6106d78d75f17b"
+};
+var db=null;
+try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }catch(e){ console.warn(e); }
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+:root{--bg:#f4f6f8;--surface:#fff;--surface2:#f8fafc;--primary:#1e3a5f;--green:#16a34a;--green-bg:#f0fdf4;--amber:#b45309;--amber-bg:#fffbeb;--red:#dc2626;--red-bg:#fef2f2;--border:#e5e9ef;--border2:#cbd5e1;--muted:#64748b;--hint:#94a3b8;--radius:10px;--radius-lg:14px}
+body{background:var(--bg);color:#0f172a;padding-bottom:40px}
+.wrap{max-width:640px;margin:0 auto;padding:0 14px}
+header{background:var(--primary);color:#fff;padding:20px 0 24px;margin-bottom:16px}
+header .wrap{display:flex;align-items:center;gap:12px}
+header h1{font-size:18px;font-weight:700}
+header p{font-size:12px;opacity:.75;margin-top:2px}
+.logo{font-size:28px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card-h{padding:13px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px}
+.field{padding:16px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.field input{width:100%;border:1.5px solid var(--border2);border-radius:var(--radius);padding:14px;font-size:17px;font-family:inherit;text-align:center;outline:none;letter-spacing:1px}
+.btn{width:100%;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-lg);padding:15px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.msg{padding:30px 20px;text-align:center;color:var(--muted);font-size:14px}
+.tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px}
+.tab{flex:1;min-width:110px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:11px 8px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;color:var(--muted)}
+.tab.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.ped{padding:15px 16px;border-bottom:1px solid var(--border)}
+.ped:last-child{border-bottom:none}
+.ped-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
+.ped-nom{font-weight:700;font-size:15px}
+.ped-fecha{font-size:11px;color:var(--hint);margin-top:2px}
+.ped-monto{font-size:19px;font-weight:800;color:var(--primary);white-space:nowrap}
+.ped-items{font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6}
+.badge{font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600}
+.b-espera{background:var(--amber-bg);color:var(--amber)}
+.b-ok{background:var(--green-bg);color:var(--green)}
+.b-vig{background:var(--green-bg);color:var(--green)}
+.b-urg{background:var(--amber-bg);color:var(--amber)}
+.b-venc{background:var(--red-bg);color:var(--red)}
+.a-val{width:100%;background:var(--green);color:#fff;border:none;border-radius:var(--radius);padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.rec-row{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.rec-row:last-child{border-bottom:none}
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px}
+.kpi{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px}
+.kpi-l{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.kpi-v{font-size:20px;font-weight:800}
+.foot{text-align:center;font-size:11px;color:var(--hint);padding:18px 14px 4px}
+select{font-size:13px;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-family:inherit;background:var(--surface);outline:none}
+</style>
+</head>
+<body>
+<header><div class="wrap"><span class="logo">💼</span><div><h1>Panel Contadora</h1><p>Club del Sur</p></div></div></header>
+<div class="wrap" id="app"><div class="card"><div class="msg">Cargando…</div></div></div>
+
+<script>
+const DB_PATH='dispensario';
+const CLAVE='pagos2026';
+let data={}, productos=[], recetas=[], pedidos=[], weeks=[], periodos=[];
+let tab='pagos';
+
+function fmt(n){return '$'+(Math.round(n)||0).toLocaleString('es-CL')}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function normRut(r){return String(r||'').replace(/[^0-9kK]/g,'').toUpperCase()}
+
+function parseFecha(val){
+  if(!val) return null;
+  const s=String(val).trim();
+  const m1=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if(m1) return new Date(parseInt(m1[3]),parseInt(m1[2])-1,parseInt(m1[1]));
+  if(/^\d{5}$/.test(s)){ const d=new Date((parseInt(s)-25569)*86400*1000); return isNaN(d)?null:d; }
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+function estadoReceta(f){
+  if(!f) return 'sin';
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const diff=Math.floor((f-hoy)/(1000*60*60*24));
+  if(diff<0) return 'vencida'; if(diff<=60) return 'urgente'; return 'vigente';
+}
+
+function initApp(){
+  if(sessionStorage.getItem('cont_ok')==='1') cargar();
+  else pantallaClave();
+}
+function pantallaClave(){
+  document.getElementById('app').innerHTML=
+    '<div class="card"><div class="card-h">🔒 Acceso contadora</div>'
+    +'<div class="field"><label>Ingresa la clave</label>'
+    +'<input id="clave" type="password" placeholder="••••••" onkeydown="if(event.key===\'Enter\')entrar()">'
+    +'<button class="btn" style="margin-top:12px" onclick="entrar()">Entrar</button></div></div>';
+  setTimeout(()=>{const e=document.getElementById('clave');if(e)e.focus();},200);
+}
+function entrar(){
+  const v=(document.getElementById('clave').value||'').trim();
+  if(v===CLAVE){ sessionStorage.setItem('cont_ok','1'); cargar(); }
+  else { const i=document.getElementById('clave'); i.value=''; i.placeholder='Clave incorrecta'; i.style.borderColor='#e74c3c'; }
+}
+
+function cargar(){
+  if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">Sin conexión.</div></div>'; return; }
+  document.getElementById('app').innerHTML='<div class="card"><div class="msg">Cargando…</div></div>';
+  db.ref(DB_PATH).once('value').then(snap=>{
+    data=snap.val()||{};
+    productos=(data.dds_prods||[]).filter(Boolean);
+    recetas=(data.dds_recetas||[]).filter(Boolean);
+    weeks=(data.dds_weeks||[]).filter(Boolean).map(w=>({...w,rows:(w.rows||[]).filter(Boolean)}));
+    periodos=(data.dds_periodos||[]).filter(Boolean);
+    const web=data.dds_pedidos_web||{};
+    pedidos=Object.values(web).filter(Boolean).filter(p=>p.estado!=='descartado');
+    pedidos.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+    render();
+  }).catch(()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar.</div></div>'; });
+}
+
+function render(){
+  const tabs='<div class="tabs">'
+    +'<div class="tab'+(tab==='pagos'?' on':'')+'" onclick="setTab(\'pagos\')">💰 Por confirmar</div>'
+    +'<div class="tab'+(tab==='recetas'?' on':'')+'" onclick="setTab(\'recetas\')">🩺 Recetas</div>'
+    +'<div class="tab'+(tab==='stats'?' on':'')+'" onclick="setTab(\'stats\')">📊 Estadísticas</div>'
+    +'</div>';
+  let cont='';
+  if(tab==='pagos') cont=renderPagos();
+  else if(tab==='recetas') cont=renderRecetas();
+  else cont=renderStats();
+  document.getElementById('app').innerHTML=tabs+cont
+    +'<div style="text-align:center"><button onclick="cargar()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:600;cursor:pointer;padding:10px">🔄 Actualizar</button></div>'
+    +'<div class="foot">Club del Sur 🌿</div>';
+}
+function setTab(t){ tab=t; render(); }
+
+function renderPagos(){
+  const pend=pedidos.filter(p=>p.estado!=='confirmado'&&p.estado!=='agregado');
+  if(!pend.length) return '<div class="card"><div class="msg">No hay pedidos por confirmar 🌿</div></div>';
+  const filas=pend.map(p=>{
+    const items=productos.filter(x=>(p.qtys||{})[x.id]>0).map(x=>p.qtys[x.id]+'g '+esc(x.name)).join(' · ');
+    const fecha=p.fecha?new Date(p.fecha).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+    return '<div class="ped">'
+      +'<div class="ped-top"><div><div class="ped-nom">'+esc(p.nombre||'—')+'</div>'
+        +'<div class="ped-fecha">🕐 '+fecha+(p.rut?' · '+esc(p.rut):'')+'</div></div>'
+        +'<div class="ped-monto">'+fmt(p.total||0)+'</div></div>'
+      +'<div class="ped-items">'+items+'</div>'
+      +'<div style="margin-bottom:10px">'+(p.pagoDeclarado?'<span class="badge b-espera">💰 dice que transfirió</span>':'')+'</div>'
+      +'<button class="a-val" onclick="validar(\''+p.id+'\')">✅ Validar pago y confirmar</button>'
+    +'</div>';
+  }).join('');
+  return '<div class="card"><div class="card-h">💰 Pedidos por confirmar ('+pend.length+')</div>'+filas+'</div>'
+    +'<div style="font-size:12px;color:var(--muted);text-align:center;padding:0 16px 10px;line-height:1.6">Revisa la transferencia en el banco. Al validar, el pedido pasa a la semana y le llega al repartidor.</div>';
+}
+
+function validar(id){
+  const p=pedidos.find(x=>x.id===id); if(!p) return;
+  if(!confirm('¿Confirmar que '+p.nombre+' transfirió '+fmt(p.total)+'?')) return;
+
+  // buscar la última semana (más reciente por fecha) para agregarlo
+  const semanaLabel = ultimaSemanaLabel();
+  // agregar la fila a esa semana en Firebase
+  const qtys={};
+  productos.forEach(x=>qtys[x.id]=(p.qtys||{})[x.id]||0);
+  const fila={
+    id:'r'+Date.now()+Math.floor(Math.random()*1000),
+    nombre:p.nombre||'', telefono:p.telefono||'', comuna:p.comuna||'',
+    direccion:p.direccion||'', qtys:qtys, hasDesp:p.hasDesp!==false, pagado:true, obs:p.obs||''
+  };
+  const wkIndex=weeks.findIndex(w=>w.label===semanaLabel);
+  if(wkIndex<0){ alert('No hay una semana creada aún. Pídele al administrador que cree la semana.'); return; }
+
+  const nuevasRows=(weeks[wkIndex].rows||[]).concat([fila]);
+  db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').set(nuevasRows).then(()=>{
+    return db.ref(DB_PATH+'/dds_pedidos_web/'+id).update({
+      estado:'confirmado', semanaLabel:semanaLabel,
+      confirmadoPor:'Contadora', confirmadoEn:new Date().toISOString()
+    });
+  }).then(()=>{
+    p.estado='confirmado';
+    cargar();
+  }).catch(e=>alert('Error al validar: '+e.message));
+}
+
+function ultimaSemanaLabel(){
+  if(!weeks.length) return null;
+  const toD=s=>{const p=String(s||'').split('-'); return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
+  return [...weeks].sort((a,b)=>toD(b.label)-toD(a.label))[0].label;
+}
+
+function renderRecetas(){
+  if(!recetas.length) return '<div class="card"><div class="msg">No hay recetas cargadas.</div></div>';
+  const conF=recetas.map(r=>({nombre:r.nombre||'—', rut:r.rut||'', f:parseFecha(r.vencimiento), est:estadoReceta(parseFecha(r.vencimiento))}));
+  const orden={vencida:0,urgente:1,vigente:2,sin:3};
+  conF.sort((a,b)=>(orden[a.est]-orden[b.est]) || (a.nombre.localeCompare(b.nombre)));
+  const nV=conF.filter(x=>x.est==='vigente').length, nU=conF.filter(x=>x.est==='urgente').length, nX=conF.filter(x=>x.est==='vencida').length;
+  const filas=conF.map(r=>{
+    const b=r.est==='vigente'?'<span class="badge b-vig">al día</span>':r.est==='urgente'?'<span class="badge b-urg">por vencer</span>':r.est==='vencida'?'<span class="badge b-venc">vencida</span>':'<span class="badge" style="background:#f1f5f9;color:#64748b">sin fecha</span>';
+    return '<div class="rec-row"><div><div style="font-weight:600">'+esc(r.nombre)+'</div>'
+      +'<div style="font-size:11px;color:var(--hint)">'+(r.f?r.f.toLocaleDateString('es-CL'):'—')+(r.rut?' · '+esc(r.rut):'')+'</div></div>'+b+'</div>';
+  }).join('');
+  return '<div class="card"><div class="kpi-grid" style="grid-template-columns:1fr 1fr 1fr">'
+      +'<div class="kpi"><div class="kpi-l">Al día</div><div class="kpi-v" style="color:var(--green)">'+nV+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Por vencer</div><div class="kpi-v" style="color:var(--amber)">'+nU+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Vencidas</div><div class="kpi-v" style="color:var(--red)">'+nX+'</div></div>'
+    +'</div></div>'
+    +'<div class="card"><div class="card-h">🩺 Recetas ('+recetas.length+')</div>'+filas+'</div>';
+}
+
+function rowSinDesp(r){ let s=0; productos.forEach(p=>s+=(r.qtys?.[p.id]||0)*(p.price||0)); return s; }
+function rowTotal(r,desp){ return rowSinDesp(r)+(r.hasDesp?desp:0); }
+
+function renderStats(){
+  const desp=data.dds_desp||5000;
+  // filtro por período
+  let semObj=weeks;
+  const sel=window._pFiltro||'todos';
+  if(sel!=='todos'){
+    const per=periodos.find(p=>p.id===sel);
+    if(per) semObj=weeks.filter(w=>(per.weeks||[]).includes(w.id));
+  }
+  const wksRev=semObj;
+  let ingresoTotal=0, alRepartidor=0, unidades=0;
+  const prodConteo={};
+  wksRev.forEach(w=>(w.rows||[]).forEach(r=>{
+    ingresoTotal+=rowTotal(r,desp);
+    if(r.hasDesp) alRepartidor+=desp;
+    productos.forEach(p=>{ const q=r.qtys?.[p.id]||0; if(q>0){ unidades+=q; prodConteo[p.id]=(prodConteo[p.id]||0)+q; } });
+  }));
+  const neto=ingresoTotal-alRepartidor;
+  const favId=Object.entries(prodConteo).sort((a,b)=>b[1]-a[1])[0]?.[0];
+  const fav=productos.find(p=>p.id===favId);
+  const prom=wksRev.length?ingresoTotal/wksRev.length:0;
+
+  const opts='<option value="todos">Todos los períodos</option>'+periodos.map(p=>'<option value="'+p.id+'"'+(sel===p.id?' selected':'')+'>'+esc(p.nombre||('Período'))+'</option>').join('');
+
+  return '<div class="card"><div class="card-h" style="display:flex;justify-content:space-between;align-items:center">📊 Resumen <select onchange="window._pFiltro=this.value;render()">'+opts+'</select></div>'
+    +'<div class="kpi-grid">'
+      +'<div class="kpi"><div class="kpi-l">Ingresos totales</div><div class="kpi-v" style="color:var(--green)">'+fmt(ingresoTotal)+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Neto sin repartidor</div><div class="kpi-v">'+fmt(neto)+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Al repartidor</div><div class="kpi-v" style="color:var(--amber)">'+fmt(alRepartidor)+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Promedio/semana</div><div class="kpi-v">'+fmt(prom)+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Semanas</div><div class="kpi-v">'+wksRev.length+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Gramos vendidos</div><div class="kpi-v">'+unidades+'</div></div>'
+    +'</div>'
+    +'<div style="padding:0 14px 14px"><div class="kpi"><div class="kpi-l">Más vendido</div><div class="kpi-v" style="font-size:15px">'+(fav?(fav.emoji||'🌿')+' '+esc(fav.name):'—')+'</div></div></div>'
+    +'</div>';
+}
+
+initApp();
+</script>
+</body>
+</html>
