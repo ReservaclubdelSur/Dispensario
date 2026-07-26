@@ -116,22 +116,19 @@ function entrar(){
 function cargar(){
   if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">Sin conexión.</div></div>'; return; }
   document.getElementById('app').innerHTML='<div class="card"><div class="msg">Cargando…</div></div>';
-  db.ref(DB_PATH).once('value').then(snap=>{
+  db.ref(DB_PATH).on('value', snap=>{
     data=snap.val()||{};
     productos=(data.dds_prods||[]).filter(Boolean);
     recetas=(data.dds_recetas||[]).filter(Boolean);
     weeks=(data.dds_weeks||[]).filter(Boolean).map(w=>({...w,rows:(w.rows||[]).filter(Boolean)}));
     periodos=(data.dds_periodos||[]).filter(Boolean);
-    const web=data.dds_pedidos_web||{};
-    pedidos=Object.values(web).filter(Boolean).filter(p=>p.estado!=='descartado');
-    pedidos.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
     render();
-  }).catch(()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar.</div></div>'; });
+  }, ()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar.</div></div>'; });
 }
 
 function render(){
   const tabs='<div class="tabs">'
-    +'<div class="tab'+(tab==='pagos'?' on':'')+'" onclick="setTab(\'pagos\')">💰 Por confirmar</div>'
+    +'<div class="tab'+(tab==='pagos'?' on':'')+'" onclick="setTab(\'pagos\')">💰 Pagos</div>'
     +'<div class="tab'+(tab==='recetas'?' on':'')+'" onclick="setTab(\'recetas\')">🩺 Recetas</div>'
     +'<div class="tab'+(tab==='stats'?' on':'')+'" onclick="setTab(\'stats\')">📊 Estadísticas</div>'
     +'</div>';
@@ -146,57 +143,105 @@ function render(){
 function setTab(t){ tab=t; render(); }
 
 function renderPagos(){
-  const pend=pedidos.filter(p=>p.estado!=='confirmado'&&p.estado!=='agregado');
-  if(!pend.length) return '<div class="card"><div class="msg">No hay pedidos por confirmar 🌿</div></div>';
-  const filas=pend.map(p=>{
-    const items=productos.filter(x=>(p.qtys||{})[x.id]>0).map(x=>p.qtys[x.id]+'g '+esc(x.name)).join(' · ');
-    const fecha=p.fecha?new Date(p.fecha).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+  // Lee la semana más reciente completa
+  const toD=s=>{const p=String(s||'').split('-');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
+  const wkSorted=[...weeks].sort((a,b)=>toD(b.label)-toD(a.label));
+  const wk = wkSorted[0];
+  if(!wk || !(wk.rows||[]).length) return '<div class="card"><div class="msg">No hay pedidos en la semana actual 🌿</div></div>';
+
+  const desp=data.dds_desp||5000;
+  const rows=wk.rows||[];
+  const pagados=rows.filter(r=>r.pagado).length;
+  const totalSemana=rows.reduce((a,r)=>a+rowTotal(r,desp),0);
+  const cobrado=rows.filter(r=>r.pagado).reduce((a,r)=>a+rowTotal(r,desp),0);
+  const falta=totalSemana-cobrado;
+
+  const filas=rows.map((r,idx)=>{
+    const cepas=productos.filter(p=>(r.qtys||{})[p.id]>0).map(p=>r.qtys[p.id]+'g '+esc(p.name)).join(' · ')||'—';
+    const val=rowTotal(r,desp);
+    const pag=!!r.pagado;
     return '<div class="ped">'
-      +'<div class="ped-top"><div><div class="ped-nom">'+esc(p.nombre||'—')+'</div>'
-        +'<div class="ped-fecha">🕐 '+fecha+(p.rut?' · '+esc(p.rut):'')+'</div></div>'
-        +'<div class="ped-monto">'+fmt(p.total||0)+'</div></div>'
-      +'<div class="ped-items">'+items+'</div>'
-      +'<div style="margin-bottom:10px">'+(p.pagoDeclarado?'<span class="badge b-espera">💰 dice que transfirió</span>':'')+'</div>'
-      +'<button class="a-val" onclick="validar(\''+p.id+'\')">✅ Validar pago y confirmar</button>'
+      +'<div class="ped-top"><div><div class="ped-nom">'+esc(r.nombre||'—')+'</div>'
+        +'<div class="ped-fecha">'+(r.hasDesp!==false?'🚚 con delivery':'🏃 retiro')+'</div></div>'
+        +'<div class="ped-monto">'+fmt(val)+'</div></div>'
+      +'<div class="ped-items">'+cepas+'</div>'
+      +'<button class="a-val" style="background:'+(pag?'var(--green)':'var(--surface2)')+';color:'+(pag?'#fff':'var(--primary)')+';border:1px solid '+(pag?'var(--green)':'var(--border2)')+'" onclick="togglePago('+idx+')">'
+        +(pag?'✅ Pagado — toca para desmarcar':'⏳ Marcar como pagado')+'</button>'
     +'</div>';
   }).join('');
-  return '<div class="card"><div class="card-h">💰 Pedidos por confirmar ('+pend.length+')</div>'+filas+'</div>'
-    +'<div style="font-size:12px;color:var(--muted);text-align:center;padding:0 16px 10px;line-height:1.6">Revisa la transferencia en el banco. Al validar, el pedido pasa a la semana y le llega al repartidor.</div>';
+
+  return '<div class="card"><div class="kpi-grid">'
+      +'<div class="kpi"><div class="kpi-l">Total semana</div><div class="kpi-v">'+fmt(totalSemana)+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Cobrado</div><div class="kpi-v" style="color:var(--green)">'+fmt(cobrado)+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Falta cobrar</div><div class="kpi-v" style="color:'+(falta>0?'var(--red)':'var(--green)')+'">'+fmt(falta)+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Pagados</div><div class="kpi-v">'+pagados+'/'+rows.length+'</div></div>'
+    +'</div></div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+      +'<button class="btn" style="background:var(--surface);color:var(--primary);border:1px solid var(--border2)" onclick="exportarPDF()">📄 PDF</button>'
+      +'<button class="btn" style="background:var(--surface);color:var(--primary);border:1px solid var(--border2)" onclick="exportarExcel()">📊 Excel</button>'
+    +'</div>'
+    +'<div class="card"><div class="card-h">💰 Semana '+esc(wk.label)+' ('+rows.length+' pedidos)</div>'+filas+'</div>';
 }
 
-function validar(id){
-  const p=pedidos.find(x=>x.id===id); if(!p) return;
-  if(!confirm('¿Confirmar que '+p.nombre+' transfirió '+fmt(p.total)+'?')) return;
-
-  // buscar la última semana (más reciente por fecha) para agregarlo
-  const semanaLabel = ultimaSemanaLabel();
-  // agregar la fila a esa semana en Firebase
-  const qtys={};
-  productos.forEach(x=>qtys[x.id]=(p.qtys||{})[x.id]||0);
-  const fila={
-    id:'r'+Date.now()+Math.floor(Math.random()*1000),
-    nombre:p.nombre||'', telefono:p.telefono||'', comuna:p.comuna||'',
-    direccion:p.direccion||'', qtys:qtys, hasDesp:p.hasDesp!==false, pagado:true, obs:p.obs||''
-  };
-  const wkIndex=weeks.findIndex(w=>w.label===semanaLabel);
-  if(wkIndex<0){ alert('No hay una semana creada aún. Pídele al administrador que cree la semana.'); return; }
-
-  const nuevasRows=(weeks[wkIndex].rows||[]).concat([fila]);
-  db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').set(nuevasRows).then(()=>{
-    return db.ref(DB_PATH+'/dds_pedidos_web/'+id).update({
-      estado:'confirmado', semanaLabel:semanaLabel,
-      confirmadoPor:'Contadora', confirmadoEn:new Date().toISOString()
-    });
-  }).then(()=>{
-    p.estado='confirmado';
-    cargar();
-  }).catch(e=>alert('Error al validar: '+e.message));
+function semanaActualObj(){
+  const toD=s=>{const p=String(s||'').split('-');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
+  return [...weeks].sort((a,b)=>toD(b.label)-toD(a.label))[0];
 }
 
-function ultimaSemanaLabel(){
-  if(!weeks.length) return null;
-  const toD=s=>{const p=String(s||'').split('-'); return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
-  return [...weeks].sort((a,b)=>toD(b.label)-toD(a.label))[0].label;
+function togglePago(idx){
+  const wk=semanaActualObj(); if(!wk) return;
+  const wkIndex=weeks.findIndex(w=>w.label===wk.label);
+  if(wkIndex<0) return;
+  const r=wk.rows[idx]; if(!r) return;
+  r.pagado=!r.pagado;
+  // guardar solo esa fila en Firebase
+  db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows/'+idx+'/pagado').set(!!r.pagado)
+    .then(()=>render())
+    .catch(e=>alert('Error: '+e.message));
+}
+
+function exportarPDF(){
+  const wk=semanaActualObj(); if(!wk) return;
+  const desp=data.dds_desp||5000;
+  const rows=wk.rows||[];
+  const prodsAct=productos.filter(p=>rows.some(r=>(r.qtys||{})[p.id]>0));
+  const filas=rows.map(r=>{
+    const celdas=prodsAct.map(p=>'<td style="text-align:center">'+((r.qtys||{})[p.id]||'')+'</td>').join('');
+    return '<tr><td>'+esc(r.nombre||'')+'</td>'+celdas+'<td style="text-align:center">'+(r.hasDesp!==false?'Sí':'No')+'</td><td style="text-align:right">'+fmt(rowTotal(r,desp))+'</td><td style="text-align:center">'+(r.pagado?'✅':'⏳')+'</td></tr>';
+  }).join('');
+  const totCol=prodsAct.map(p=>'<td style="text-align:center;font-weight:bold">'+rows.reduce((a,r)=>a+((r.qtys||{})[p.id]||0),0)+'</td>').join('');
+  const totGen=rows.reduce((a,r)=>a+rowTotal(r,desp),0);
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Semana '+esc(wk.label)+'</title>'
+    +'<style>body{font-family:Arial;font-size:12px;padding:20px}h1{color:#1e3a5f;font-size:18px}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#1e3a5f;color:#fff;padding:7px;text-align:left;font-size:11px}td{padding:6px;border:1px solid #ddd}@media print{body{padding:0}}</style></head><body>'
+    +'<h1>🌿 Club del Sur — Semana '+esc(wk.label)+'</h1>'
+    +'<div style="color:#666;font-size:11px">Generado '+new Date().toLocaleDateString('es-CL')+'</div>'
+    +'<table><thead><tr><th>Cliente</th>'+prodsAct.map(p=>'<th style="text-align:center">'+esc(p.name)+'</th>').join('')+'<th style="text-align:center">Delivery</th><th style="text-align:right">Total</th><th style="text-align:center">Pago</th></tr></thead>'
+    +'<tbody>'+filas+'</tbody>'
+    +'<tfoot><tr style="background:#eff6ff"><td style="font-weight:bold">TOTAL</td>'+totCol+'<td></td><td style="text-align:right;font-weight:bold">'+fmt(totGen)+'</td><td></td></tr></tfoot></table>'
+    +'<script>window.onload=()=>window.print()<\/script></body></html>';
+  const w=window.open('','_blank');
+  w.document.write(html); w.document.close();
+}
+
+function exportarExcel(){
+  const wk=semanaActualObj(); if(!wk) return;
+  const desp=data.dds_desp||5000;
+  const rows=wk.rows||[];
+  const prodsAct=productos.filter(p=>rows.some(r=>(r.qtys||{})[p.id]>0));
+  const th='style="background:#1e3a5f;color:#fff;padding:8px;border:1px solid #999"';
+  const td='style="padding:6px;border:1px solid #ccc"';
+  let html='<table border="1"><tr><th '+th+'>Cliente</th>'+prodsAct.map(p=>'<th '+th+'>'+esc(p.name)+'</th>').join('')+'<th '+th+'>Delivery</th><th '+th+'>Total</th><th '+th+'>Pagado</th></tr>';
+  rows.forEach(r=>{
+    html+='<tr><td '+td+'>'+esc(r.nombre||'')+'</td>'+prodsAct.map(p=>'<td '+td+' align="center">'+((r.qtys||{})[p.id]||'')+'</td>').join('')+'<td '+td+' align="center">'+(r.hasDesp!==false?'Sí':'No')+'</td><td '+td+' align="right">'+rowTotal(r,desp)+'</td><td '+td+' align="center">'+(r.pagado?'Sí':'No')+'</td></tr>';
+  });
+  html+='</table>';
+  const excel='<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>'+html+'</body></html>';
+  const blob=new Blob(['\uFEFF'+excel],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='semana-'+wk.label+'.xls';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function renderRecetas(){
