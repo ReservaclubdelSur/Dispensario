@@ -240,6 +240,7 @@ td.right{text-align:right;font-weight:600}
       <div class="nav-section">Gestión</div>
       <div class="nav-item on" id="nav-pedidos"><span>📦</span>Pedidos</div>
       <div class="nav-item" id="nav-pedidosweb"><span>📥</span>Pedidos por confirmar <span id="webBadge" style="display:none;background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:auto"></span></div>
+      <div class="nav-item" id="nav-contadora"><span>💼</span>Contadora</div>
       <div class="nav-item" id="nav-repartidor"><span>🚚</span>Repartidor</div>
       <div class="nav-item" id="nav-preparar"><span>📋</span>Preparar pedidos</div>
       
@@ -328,6 +329,22 @@ td.right{text-align:right;font-weight:600}
           </div>
         </div>
         <div class="gram-bar" id="gramBar"></div>
+      </div>
+
+      <!-- CONTADORA -->
+      <div id="t-contadora" class="view">
+        <div style="max-width:860px">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-header-title">💼 Pagos (vista contadora)</span>
+              <button class="btn" id="btnRecargarPagos">🔄 Actualizar</button>
+            </div>
+            <div style="padding:10px 18px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)">
+              Lo mismo que ve la contadora. El estado de pago lo controla ella.
+            </div>
+            <div id="pagosList"></div>
+          </div>
+        </div>
       </div>
 
       <!-- REPARTIDOR -->
@@ -986,7 +1003,7 @@ function showModal(title,msg,onConfirm,confirmLabel='Confirmar',infoHtml=''){
 function closeModal(){document.getElementById('modalBg').classList.remove('on');}
 
 // ── TABS ──────────────────────────────────────────────────────────
-const TAB_TITLES={pedidos:'Pedidos de la semana',pedidosweb:'Pedidos por confirmar',repartidor:'Ruta del repartidor',preparar:'Preparar pedidos',parsear:'Parsear mensaje WhatsApp',plantillas:'Plantillas de WhatsApp','difusion-lista':'Lista de difusión',periodos:'Períodos',historial:'Historial de semanas','historial-cliente':'Historial por cliente',socios:'Nuevos Socios',clientes:'Base de clientes',recetas:'Control de recetas',stock:'Control de stock',stats:'Estadísticas',importar:'Importar desde Excel',config:'Configuración',backup:'Backup de datos'};
+const TAB_TITLES={pedidos:'Pedidos de la semana',pedidosweb:'Pedidos por confirmar',contadora:'Pagos (vista contadora)',repartidor:'Ruta del repartidor',preparar:'Preparar pedidos',parsear:'Parsear mensaje WhatsApp',plantillas:'Plantillas de WhatsApp','difusion-lista':'Lista de difusión',periodos:'Períodos',historial:'Historial de semanas','historial-cliente':'Historial por cliente',socios:'Nuevos Socios',clientes:'Base de clientes',recetas:'Control de recetas',stock:'Control de stock',stats:'Estadísticas',importar:'Importar desde Excel',config:'Configuración',backup:'Backup de datos'};
 function showTab(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
@@ -1000,6 +1017,7 @@ function showTab(name){
   if(name==='periodos')renderPeriodos();
   if(name==='difusion-lista')renderDifusionLista();
   if(name==='pedidosweb')renderPedidosWeb();
+  if(name==='contadora')renderVistaPagos();
   if(name==='repartidor')renderRutaRepartidor();
   if(name==='preparar')renderPreparar();
   if(name==='historial-cliente'){const el=document.getElementById('hcSearch');if(el)el.value='';renderHistorialCliente();}
@@ -1407,6 +1425,37 @@ function limpiarPruebasWeb(){
       toast('✅ Pedidos web limpiados');
     }).catch(e=>toast('Error: '+e.message));
   },'Sí, limpiar todo');
+}
+
+// ── VISTA PAGOS (reflejo contadora) ───────────────────────────────
+function renderVistaPagos(){
+  const list=document.getElementById('pagosList'); if(!list) return;
+  const wk=cw();
+  if(!wk||!wk.rows.length){ list.innerHTML='<div class="empty" style="padding:2rem">Sin pedidos en la semana actual 🌿</div>'; return; }
+  const desp=despPrice;
+  const rows=wk.rows;
+  const pagados=rows.filter(r=>r.pagado).length;
+  const totalSemana=rows.reduce((a,r)=>a+rowTotal(r),0);
+  const cobrado=rows.filter(r=>r.pagado).reduce((a,r)=>a+rowTotal(r),0);
+  const falta=totalSemana-cobrado;
+
+  const resumen='<div style="display:flex;gap:8px;padding:12px 18px;flex-wrap:wrap;border-bottom:1px solid var(--border)">'
+    +'<div style="flex:1;min-width:90px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600">Total</div><div style="font-size:15px;font-weight:800">'+fmt(totalSemana)+'</div></div>'
+    +'<div style="flex:1;min-width:90px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600">Cobrado</div><div style="font-size:15px;font-weight:800;color:var(--green)">'+fmt(cobrado)+'</div></div>'
+    +'<div style="flex:1;min-width:90px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600">Falta</div><div style="font-size:15px;font-weight:800;color:'+(falta>0?'#dc2626':'var(--green)')+'">'+fmt(falta)+'</div></div>'
+    +'<div style="flex:1;min-width:90px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600">Pagados</div><div style="font-size:15px;font-weight:800">'+pagados+'/'+rows.length+'</div></div>'
+  +'</div>';
+
+  const filas=rows.map(r=>{
+    const pag=!!r.pagado;
+    return '<div style="display:flex;align-items:center;gap:11px;padding:11px 18px;border-bottom:1px solid var(--border);'+(pag?'background:#f0fdf4':'')+'">'
+      +'<span style="font-size:18px">'+(pag?'✅':'⏳')+'</span>'
+      +'<div style="flex:1;min-width:0;font-weight:600;'+(pag?'color:var(--muted)':'')+'">'+esc(r.nombre||'—')+'</div>'
+      +'<div style="font-weight:800;color:'+(pag?'var(--green)':'#0f172a')+'">'+fmt(rowTotal(r))+'</div>'
+    +'</div>';
+  }).join('');
+
+  list.innerHTML=resumen+filas;
 }
 
 // ── RUTA REPARTIDOR (vista admin) ─────────────────────────────────
@@ -3719,6 +3768,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('btnForzarSync').addEventListener('click',forzarSync);
   document.getElementById('nav-pedidos').addEventListener('click',()=>showTab('pedidos'));
   document.getElementById('nav-pedidosweb').addEventListener('click',()=>showTab('pedidosweb'));
+  document.getElementById('nav-contadora').addEventListener('click',()=>showTab('contadora'));
+  document.getElementById('btnRecargarPagos').addEventListener('click',renderVistaPagos);
   document.getElementById('nav-repartidor').addEventListener('click',()=>showTab('repartidor'));
   document.getElementById('btnRecargarRuta').addEventListener('click',renderRutaRepartidor);
   document.getElementById('btnLimpiarPruebas').addEventListener('click',limpiarPruebasWeb);
