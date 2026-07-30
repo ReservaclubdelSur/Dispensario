@@ -1024,6 +1024,26 @@ function closeModal(){document.getElementById('modalBg').classList.remove('on');
 
 // ── TABS ──────────────────────────────────────────────────────────
 const TAB_TITLES={pedidos:'Pedidos de la semana',pedidosweb:'Pedidos por confirmar',envios:'Envíos Lun/Mar',contadora:'Pagos (vista contadora)',repartidor:'Ruta del repartidor',preparar:'Preparar pedidos',parsear:'Parsear mensaje WhatsApp',plantillas:'Plantillas de WhatsApp','difusion-lista':'Lista de difusión',periodos:'Períodos',historial:'Historial de semanas','historial-cliente':'Historial por cliente',socios:'Nuevos Socios',clientes:'Base de clientes',recetas:'Control de recetas',stock:'Control de stock',stats:'Estadísticas',importar:'Importar desde Excel',config:'Configuración',backup:'Backup de datos'};
+function refrescarPagosSemana(){
+  const wk=cw(); if(!wk) return;
+  if(!db && typeof initFirebase==='function') initFirebase();
+  if(!db) return;
+  const wkIndex=weeks.findIndex(w=>w.label===wk.label);
+  if(wkIndex<0) return;
+  db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').once('value').then(snap=>{
+    let rowsNube=snap.val();
+    rowsNube=Array.isArray(rowsNube)?rowsNube.filter(Boolean):(rowsNube?Object.values(rowsNube).filter(Boolean):[]);
+    if(!rowsNube.length) return;
+    // actualizar solo el campo pagado de cada fila (por id) sin pisar lo que estés editando
+    let cambio=false;
+    rowsNube.forEach(rn=>{
+      const local=wk.rows.find(r=>String(r.id)===String(rn.id));
+      if(local && !!local.pagado!==!!rn.pagado){ local.pagado=!!rn.pagado; cambio=true; }
+    });
+    if(cambio){ lsSet('dds_weeks', weeks); renderRows(); }
+  }).catch(()=>{});
+}
+
 function showTab(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
@@ -1034,6 +1054,7 @@ function showTab(name){
   document.getElementById('topbarAddBtn').style.display=name==='pedidos'?'':'none';
   document.getElementById('btnCSV').style.display=name==='pedidos'?'':'none';
   if(name==='historial'){periodoFiltroHistorial=null;renderHistorial();}
+  if(name==='pedidos')refrescarPagosSemana();
   if(name==='periodos')renderPeriodos();
   if(name==='difusion-lista')renderDifusionLista();
   if(name==='pedidosweb')renderPedidosWeb();
