@@ -1205,6 +1205,27 @@ function renderAvisoRevisada(){
     _avisoRevListen=true;
     db.ref(DB_PATH+'/dds_semana_revisada').on('value', ()=>pintarAvisoRevisada());
     db.ref(DB_PATH+'/dds_pedidos_web').on('value', ()=>pintarAvisoRevisada());
+    // escuchar cambios de pagos en las semanas (para reflejar lo que marca la contadora)
+    db.ref(DB_PATH+'/dds_weeks').on('value', snap=>{
+      const wkNow=cw(); if(!wkNow) return;
+      let wksNube=snap.val();
+      wksNube=Array.isArray(wksNube)?wksNube:(wksNube?Object.values(wksNube):[]);
+      const wkNube=(wksNube||[]).filter(Boolean).find(w=>w && w.label===wkNow.label);
+      if(!wkNube) return;
+      let rowsNube=wkNube.rows;
+      rowsNube=Array.isArray(rowsNube)?rowsNube.filter(Boolean):(rowsNube?Object.values(rowsNube).filter(Boolean):[]);
+      let cambio=false;
+      rowsNube.forEach(rn=>{
+        const local=wkNow.rows.find(r=>String(r.id)===String(rn.id));
+        if(local && !!local.pagado!==!!rn.pagado){ local.pagado=!!rn.pagado; cambio=true; }
+      });
+      if(cambio){
+        lsSet('dds_weeks', weeks);
+        // refrescar solo si estás viendo Pedidos, sin molestar otras pestañas
+        const tPedidos=document.getElementById('t-pedidos');
+        if(tPedidos && tPedidos.classList.contains('on')) renderRows();
+      }
+    });
   }
 }
 
