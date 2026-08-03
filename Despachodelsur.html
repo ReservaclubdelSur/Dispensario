@@ -1577,7 +1577,8 @@ function renderEnvios(){
 function enviarWhatsapp(clave, tipo, tel, primerNombre){
   const plantilla=tplEnvio[tipo]||'';
   const msg=plantilla.replace(/\{nombre\}/g, primerNombre||'');
-  window.open('https://wa.me/56'+tel+'?text='+encodeURIComponent(msg),'_blank');
+  // whatsapp:// abre la app de escritorio directo (sin abrir también WhatsApp Web)
+  window.location.href='whatsapp://send?phone=56'+tel+'&text='+encodeURIComponent(msg);
   // marcar enviado
   enviadosEnvio[clave]=true;
   lsSet('dds_envios_hechos', enviadosEnvio);
