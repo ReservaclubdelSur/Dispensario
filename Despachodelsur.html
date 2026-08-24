@@ -200,7 +200,7 @@ td.right{text-align:right;font-weight:600}
 .hist-acts{display:flex;gap:6px;align-items:center}
 .config-section{margin-bottom:20px}
 .config-section h3{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
-.prod-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)}
+.prod-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
 .prod-row:last-child{border-bottom:none}
 .prod-row input{border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;background:var(--surface2);font-family:inherit;font-size:12px;color:var(--text);outline:none}
 .prod-row input:focus{border-color:var(--primary)}
@@ -768,6 +768,7 @@ td.right{text-align:right;font-weight:600}
             </div>
             <div class="config-section">
               <h3>Productos activos</h3>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6">✅ hay stock (aparece en menú) · 👁️ ocultar de pedidos nuevos · 📋 tope: gramos disponibles en el menú (vacío = sin límite)</div>
               <div id="prodList"></div>
               <div class="add-row">
                 <input type="text" id="nName" placeholder="Nombre del producto" style="flex:1;min-width:130px">
@@ -3504,6 +3505,8 @@ function renderConfig(){
       <input type="text" value="${esc(p.name)}" style="flex:1;min-width:120px" oninput="products[${i}].name=this.value;saveAll();renderRows()">
       <span style="font-size:12px;color:var(--muted);white-space:nowrap">$/u</span>
       <input type="number" value="${p.price}" style="width:100px;text-align:right" oninput="products[${i}].price=parseInt(this.value)||0;saveAll();renderRows()">
+      <span style="font-size:14px;white-space:nowrap" title="Tope del menú: gramos disponibles en el menú público. Vacío = sin límite. Al llegar a 0 la cepa desaparece del menú.">📋</span>
+      <input type="number" value="${p.topeMenu!=null?p.topeMenu:''}" placeholder="tope" style="width:60px;text-align:right" title="Gramos disponibles en el menú. Vacío = sin límite." oninput="products[${i}].topeMenu=(this.value===''?null:parseFloat(this.value));saveAll()">
       <button class="btn btn-danger" onclick="removeProd(${i})">✕</button>
     </div>`).join('')||'<div class="empty">Sin productos</div>';
 }
