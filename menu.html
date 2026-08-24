@@ -140,6 +140,8 @@ function estadoReceta(fecha){
   return 'vigente';
 }
 
+let topeDisp={}; // gramos que quedan por cepa con tope
+
 function cargar(){
   if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo conectar. Revisa tu internet y recarga la página.</div></div>'; return; }
   db.ref(DB_PATH).once('value').then(snap=>{
@@ -147,6 +149,17 @@ function cargar(){
     productos=(d.dds_prods||[]).filter(Boolean);
     recetas=(d.dds_recetas||[]).filter(Boolean);
     precioDelivery=d.dds_desp||5000;
+    // Calcular tope disponible: topeMenu del producto menos lo ya pedido en pedidos web activos
+    const web=d.dds_pedidos_web||{};
+    const pedidosActivos=Object.values(web).filter(Boolean).filter(p=>p.estado!=='descartado');
+    topeDisp={};
+    productos.forEach(p=>{
+      if(p.topeMenu!=null){
+        let usado=0;
+        pedidosActivos.forEach(ped=>{ usado+=(ped.qtys||{})[p.id]||0; });
+        topeDisp[p.id]=Math.max(0, p.topeMenu - usado);
+      }
+    });
     render();
   }).catch(()=>{
     document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar. Intenta de nuevo en unos minutos.</div></div>';
@@ -154,8 +167,8 @@ function cargar(){
 }
 
 function disponibles(){
-  // Manda el ✅ de Productos en la app. Las ocultas nunca se muestran.
-  return productos.filter(p=> !p.oculto && p.stock!==false );
+  // Manda el ✅ de Productos. Ocultas nunca. Con tope en 0 tampoco.
+  return productos.filter(p=> !p.oculto && p.stock!==false && !(p.topeMenu!=null && (topeDisp[p.id]||0)<=0) );
 }
 
 function render(){
@@ -166,10 +179,12 @@ function render(){
   }
   const filas=disp.map(p=>{
     const activo=(qtys[p.id]||0)>0;
+    const conTope=p.topeMenu!=null;
+    const quedan=conTope?(topeDisp[p.id]||0):null;
     return '<div class="prod'+(activo?' activo':'')+'" id="prod-'+p.id+'">'
       +'<div class="prod-info"><div class="prod-name">'+(p.emoji||'🌿')+' '+esc(p.name)+'</div>'
-      +'<div class="prod-price">'+fmt(p.price)+' c/u</div></div>'
-      +'<div class="qty-box"><input type="number" min="0" step="any" inputmode="decimal" placeholder="0" value="'+(qtys[p.id]||'')+'" oninput="setQty(\''+p.id+'\',this.value)"><span>g</span></div>'
+      +'<div class="prod-price">'+fmt(p.price)+' c/u'+(conTope?' · <span style="color:#b45309;font-weight:600">quedan '+quedan+'g</span>':'')+'</div></div>'
+      +'<div class="qty-box"><input type="number" min="0" step="any" inputmode="decimal" placeholder="0" value="'+(qtys[p.id]||'')+'"'+(conTope?' data-tope="'+quedan+'"':'')+' oninput="setQty(\''+p.id+'\',this.value)"><span>g</span></div>'
       +'</div>';
   }).join('');
 
@@ -189,7 +204,18 @@ function render(){
 }
 
 function setQty(id,v){
-  const n=parseFloat(v)||0;
+  let n=parseFloat(v)||0;
+  // Respetar tope si la cepa lo tiene
+  const prod=productos.find(p=>p.id===id);
+  if(prod && prod.topeMenu!=null){
+    const max=topeDisp[id]||0;
+    if(n>max){
+      n=max;
+      const inp=document.querySelector('#prod-'+id+' input[type=number]');
+      if(inp){ inp.value=max>0?max:''; }
+      alert('Por ahora tenemos '+max+'g disponibles de '+prod.name+'. Ajustamos tu pedido a esa cantidad 🌿');
+    }
+  }
   if(n>0) qtys[id]=n; else delete qtys[id];
   const el=document.getElementById('prod-'+id);
   if(el) el.className='prod'+(n>0?' activo':'');
