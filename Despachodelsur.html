@@ -1021,7 +1021,15 @@ function precioDeliveryComuna(comuna){
   if(comuna && comunaPrecios && comunaPrecios[comuna]!=null) return comunaPrecios[comuna];
   return despPrice;
 }
-function rowTotal(r){let s=r.hasDesp?precioDeliveryComuna(r.comuna):0;products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
+// Delivery de una fila: usa el monto que quedó guardado en el pedido (histórico real).
+// Si el pedido no tiene monto guardado (pedidos viejos), usa el precio base — NO la tarifa por comuna,
+// para no reescribir el historial con precios nuevos.
+function despDeFila(r){
+  if(!r.hasDesp) return 0;
+  if(r.despMonto!=null) return r.despMonto;
+  return despPrice;
+}
+function rowTotal(r){let s=despDeFila(r);products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
 function rowSinDesp(r){let s=0;products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
 function normalizeNombre(n){return(n||'').toLowerCase().trim().replace(/\s+/g,' ')}
 function toast(msg,dur=2400){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
@@ -1136,7 +1144,7 @@ function deleteWeek(wid){
 // ── ROWS ──────────────────────────────────────────────────────────
 function addRow(){
   const qtys={};products.forEach(p=>qtys[p.id]=0);
-  const id=uid();cw().rows.push({id,nombre:'',telefono:'',comuna:'',direccion:'',qtys,hasDesp:true,pagado:false,obs:''});
+  const id=uid();cw().rows.push({id,nombre:'',telefono:'',comuna:'',direccion:'',qtys,hasDesp:true,despMonto:despPrice,pagado:false,obs:''});
   expandedRow=id;saveAll();renderRows();
   setTimeout(()=>{const el=document.getElementById('inp-nombre-'+id);if(el)el.focus();},60);
 }
@@ -1148,8 +1156,8 @@ function removeRow(rid){
   },'Eliminar');
 }
 function togglePagado(rid,e){e&&e.stopPropagation();const r=cw().rows.find(r=>r.id===rid);if(r){r.pagado=!r.pagado;saveAll();renderRows();}}
-function toggleDesp(rid,e){e&&e.stopPropagation();const r=cw().rows.find(r=>r.id===rid);if(r){r.hasDesp=!r.hasDesp;saveAll();renderRows();}}
-function setField(rid,f,v){const r=cw().rows.find(r=>r.id===rid);if(r){r[f]=v;saveAll();}}
+function toggleDesp(rid,e){e&&e.stopPropagation();const r=cw().rows.find(r=>r.id===rid);if(r){r.hasDesp=!r.hasDesp; r.despMonto=r.hasDesp?precioDeliveryComuna(r.comuna):0; saveAll();renderRows();}}
+function setField(rid,f,v){const r=cw().rows.find(r=>r.id===rid);if(r){r[f]=v; if(f==='comuna'&&r.hasDesp){ r.despMonto=precioDeliveryComuna(v); } saveAll(); if(f==='comuna')renderRows();}}
 function setQty(rid,pid,v){
   const r=cw().rows.find(r=>r.id===rid);
   if(r){r.qtys[pid]=parseFloat(v)||0;saveAll();
@@ -1196,7 +1204,7 @@ function renderRows(){
         </div></div>
         <div class="expand-foot">
           <div class="expand-badges">
-            <span class="badge ${row.hasDesp?'bg':'ba'}" onclick="toggleDesp('${row.id}',event)">${row.hasDesp?'🚚 Con delivery ('+fmt(despPrice)+')':'🏃 Sin delivery'}</span>
+            <span class="badge ${row.hasDesp?'bg':'ba'}" onclick="toggleDesp('${row.id}',event)">${row.hasDesp?'🚚 Con delivery ('+fmt(despDeFila(row))+')':'🏃 Sin delivery'}</span>
             <span class="badge ${row.pagado?'bg':'br'}" onclick="togglePagado('${row.id}',event)">${row.pagado?'✓ Pagado':'⏳ Falta cobrar'}</span>
           </div>
           <div style="display:flex;gap:8px">
@@ -1407,7 +1415,7 @@ function exportarResumenPDF(){
   if(!wk.rows.length){toast('⚠️ No hay pedidos esta semana');return;}
   let totalIngresos=0,totalDesp=0,totalNeto=0,totalUnidades=0;
   const filas=wk.rows.map((r,i)=>{
-    const t=rowTotal(r);const sinD=rowSinDesp(r);const desp=r.hasDesp?despPrice:0;
+    const t=rowTotal(r);const sinD=rowSinDesp(r);const desp=despDeFila(r);
     totalIngresos+=t;totalDesp+=desp;totalNeto+=sinD;
     const prods=products.filter(p=>(r.qtys[p.id]||0)>0).map(p=>r.qtys[p.id]+'x '+p.name).join(', ');
     totalUnidades+=products.reduce((a,p)=>a+(r.qtys[p.id]||0),0);
@@ -1485,7 +1493,7 @@ function exportarResumenCSV(){
   wk.rows.forEach(r=>{
     html += '<tr><td '+td+'>'+esc(r.nombre)+'</td><td '+td+'>'+esc(r.telefono||'')+'</td><td '+td+'>'+esc(r.comuna||'')+'</td><td '+td+'>'+esc(r.direccion||'')+'</td>'
       +prodsActivos.map(p=>'<td '+tdN+'>'+(r.qtys[p.id]||'')+'</td>').join('')
-      +'<td '+tdN+'>'+(r.hasDesp?despPrice:'')+'</td><td '+tdN+'><b>'+rowTotal(r)+'</b></td><td '+tdN+'>'+(r.pagado?'Sí':'No')+'</td><td '+td+'>'+esc(r.obs||'')+'</td></tr>';
+      +'<td '+tdN+'>'+(r.hasDesp?despDeFila(r):'')+'</td><td '+tdN+'><b>'+rowTotal(r)+'</b></td><td '+tdN+'>'+(r.pagado?'Sí':'No')+'</td><td '+td+'>'+esc(r.obs||'')+'</td></tr>';
   });
 
   // fila de totales
@@ -1797,6 +1805,7 @@ function agregarPedidoWeb(id){
     direccion:p.direccion||'',
     qtys:qtys,
     hasDesp:p.hasDesp!==false,
+    despMonto:(p.despMonto!=null?p.despMonto:(p.hasDesp!==false?precioDeliveryComuna(p.comuna):0)),
     pagado:false,
     obs:p.obs||''
   };
@@ -4018,7 +4027,7 @@ function handleBackupFile(file){
 function exportCSV(){
   const wk=cw();
   let csv='N°,Nombre,Teléfono,Comuna,Dirección,'+products.map(p=>p.name).join(',')+',Delivery,Total,Sin delivery,Estado\n';
-  wk.rows.forEach((row,i)=>{csv+=(i+1)+',"'+row.nombre+'","'+(row.telefono||'')+'","'+row.comuna+'","'+row.direccion+'",'+products.map(p=>row.qtys[p.id]||0).join(',')+','+(row.hasDesp?despPrice:0)+','+rowTotal(row)+','+rowSinDesp(row)+','+(row.pagado?'Pagado':'Falta')+'\n';});
+  wk.rows.forEach((row,i)=>{csv+=(i+1)+',"'+row.nombre+'","'+(row.telefono||'')+'","'+row.comuna+'","'+row.direccion+'",'+products.map(p=>row.qtys[p.id]||0).join(',')+','+despDeFila(row)+','+rowTotal(row)+','+rowSinDesp(row)+','+(row.pagado?'Pagado':'Falta')+'\n';});
   const b=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='despacho_'+cw().label+'.csv';a.click();
 }
