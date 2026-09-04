@@ -762,8 +762,19 @@ td.right{text-align:right;font-weight:600}
             <div class="config-section">
               <h3>Precio de delivery</h3>
               <div class="desp-row">
-                <label>$ por pedido con delivery</label>
+                <label>$ por pedido con delivery (base)</label>
                 <input type="number" id="dPriceInp">
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">Este es el precio normal. Abajo puedes ponerle un precio distinto a comunas específicas (las que quedan más lejos).</div>
+            </div>
+            <div class="config-section">
+              <h3>Delivery por comuna (excepciones)</h3>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6">Las comunas que no estén acá cobran el precio base. Agrega solo las que cuestan distinto.</div>
+              <div id="comunaPreciosList"></div>
+              <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+                <select id="nuevaComunaSel" style="flex:1;min-width:140px;padding:8px;border:1px solid var(--border2);border-radius:var(--radius);font-family:inherit;font-size:13px"></select>
+                <input type="number" id="nuevaComunaPrecio" placeholder="$" style="width:90px;padding:8px;border:1px solid var(--border2);border-radius:var(--radius);font-family:inherit;font-size:13px;text-align:right">
+                <button class="btn btn-primary" id="btnAddComunaPrecio">Agregar</button>
               </div>
             </div>
             <div class="config-section">
@@ -876,7 +887,7 @@ function forzarSync(){
 function subirTodoNube(){
   if(!db){toast('⚠️ Sin conexión a la nube');return;}
   const data=JSON.parse(JSON.stringify({
-    dds_prods:products,dds_weeks:weeks,dds_cur:curId,dds_desp:despPrice,
+    dds_prods:products,dds_weeks:weeks,dds_cur:curId,dds_desp:despPrice,dds_comuna_precios:comunaPrecios,
     dds_clientes:clientesDB,dds_rep:repartidorTel,dds_periodos:periodos,
     dds_periodo_actual:periodoActual,dds_stock:stockDB,dds_socios:sociosDB,
     dds_recetas:recetasDB,dds_plantillas:plantillas
@@ -902,7 +913,7 @@ function bajarTodoNube(){
 
 function saveAll(){
   const data={
-    dds_prods:products,dds_weeks:weeks,dds_cur:curId,dds_desp:despPrice,
+    dds_prods:products,dds_weeks:weeks,dds_cur:curId,dds_desp:despPrice,dds_comuna_precios:comunaPrecios,
     dds_clientes:clientesDB,dds_rep:repartidorTel,dds_periodos:periodos,
     dds_periodo_actual:periodoActual,dds_stock:stockDB,dds_socios:sociosDB,
     dds_recetas:recetasDB,dds_plantillas:plantillas
@@ -966,6 +977,8 @@ let _cli=lsGet('dds_clientes',[]);
 if(!_cli.length){lsSet('dds_clientes',BACKUP_CLIENTES);}
 let curId=lsGet('dds_cur',weeks[weeks.length-1].id);
 let despPrice=lsGet('dds_desp',5000);
+let comunaPrecios=lsGet('dds_comuna_precios',{}); // {comuna: precio}
+const COMUNAS_STGO=["Cerrillos","Cerro Navia","Conchalí","El Bosque","Estación Central","Huechuraba","Independencia","La Cisterna","La Florida","La Granja","La Pintana","La Reina","Las Condes","Lo Barnechea","Lo Espejo","Lo Prado","Macul","Maipú","Ñuñoa","Pedro Aguirre Cerda","Peñalolén","Providencia","Pudahuel","Quilicura","Quinta Normal","Recoleta","Renca","San Joaquín","San Miguel","San Ramón","Santiago","Vitacura","Puente Alto","San Bernardo"];
 let clientesDB=lsGet('dds_clientes',[]);
 let repartidorTel=lsGet('dds_rep','');
 let expandedRow=null;
@@ -1004,7 +1017,11 @@ function uid(){return 'x'+Date.now()+Math.floor(Math.random()*9999)}
 function fmt(n){return '$'+(Math.round(n)||0).toLocaleString('es-CL')}
 function cw(){return weeks.find(w=>w.id===curId)||weeks[0]}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
-function rowTotal(r){let s=r.hasDesp?despPrice:0;products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
+function precioDeliveryComuna(comuna){
+  if(comuna && comunaPrecios && comunaPrecios[comuna]!=null) return comunaPrecios[comuna];
+  return despPrice;
+}
+function rowTotal(r){let s=r.hasDesp?precioDeliveryComuna(r.comuna):0;products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
 function rowSinDesp(r){let s=0;products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
 function normalizeNombre(n){return(n||'').toLowerCase().trim().replace(/\s+/g,' ')}
 function toast(msg,dur=2400){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
@@ -1074,6 +1091,7 @@ function showTab(name){
     document.getElementById('dPriceInp').value=despPrice;
     document.getElementById('repInp').value=repartidorTel;
     renderConfig();
+    renderComunaPrecios();
   }
 }
 
@@ -3489,6 +3507,49 @@ function renderClientes(){
 }
 
 // ── CONFIG ────────────────────────────────────────────────────────
+function renderComunaPrecios(){
+  const cont=document.getElementById('comunaPreciosList');
+  if(cont){
+    const keys=Object.keys(comunaPrecios);
+    cont.innerHTML = keys.length ? keys.sort().map(com=>
+      '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">'
+      +'<span style="flex:1;font-weight:600;font-size:14px">'+esc(com)+'</span>'
+      +'<span style="color:var(--muted);font-size:13px">$</span>'
+      +'<input type="number" value="'+comunaPrecios[com]+'" style="width:90px;text-align:right;padding:6px;border:1px solid var(--border2);border-radius:var(--radius);font-family:inherit" oninput="comunaPrecios[\''+esc(com).replace(/'/g,"")+'\']=parseInt(this.value)||0;lsSet(\'dds_comuna_precios\',comunaPrecios);saveAll()">'
+      +'<button class="btn btn-danger" onclick="quitarComunaPrecio(\''+esc(com).replace(/'/g,"")+'\')">✕</button>'
+      +'</div>'
+    ).join('') : '<div style="font-size:12px;color:var(--hint);padding:6px 0">Sin excepciones. Todas las comunas cobran $'+despPrice.toLocaleString('es-CL')+'.</div>';
+  }
+  // llenar el select con comunas que aún no tienen precio
+  const sel=document.getElementById('nuevaComunaSel');
+  if(sel){
+    const disponibles=COMUNAS_STGO.filter(c=>!(c in comunaPrecios));
+    sel.innerHTML=disponibles.map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join('');
+  }
+}
+
+function agregarComunaPrecio(){
+  const sel=document.getElementById('nuevaComunaSel');
+  const inp=document.getElementById('nuevaComunaPrecio');
+  const com=sel.value;
+  const precio=parseInt(inp.value)||0;
+  if(!com){toast('⚠️ Elige una comuna');return;}
+  if(precio<=0){toast('⚠️ Pon un precio');return;}
+  comunaPrecios[com]=precio;
+  lsSet('dds_comuna_precios',comunaPrecios);
+  saveAll();
+  inp.value='';
+  renderComunaPrecios();
+  toast('✅ '+com+': $'+precio.toLocaleString('es-CL'));
+}
+
+function quitarComunaPrecio(com){
+  delete comunaPrecios[com];
+  lsSet('dds_comuna_precios',comunaPrecios);
+  saveAll();
+  renderComunaPrecios();
+}
+
 function renderConfig(){
   document.getElementById('prodList').innerHTML=products.map((p,i)=>
     `<div class="prod-row" draggable="true" id="prodrow-${i}"
@@ -3966,6 +4027,8 @@ function exportCSV(){
 document.addEventListener('DOMContentLoaded',()=>{
   // Sincronizar desde Firebase primero, luego iniciar la app
   syncFromFirebase(()=>{
+  // Recargar datos que pueden haber llegado de la nube
+  comunaPrecios=lsGet('dds_comuna_precios',comunaPrecios||{});
   // Nav
   document.getElementById('btnForzarSync').addEventListener('click',forzarSync);
   document.getElementById('nav-pedidos').addEventListener('click',()=>showTab('pedidos'));
@@ -4068,6 +4131,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('btnAddCliente').addEventListener('click',addCliente);
   // Config
   document.getElementById('dPriceInp').addEventListener('input',e=>{despPrice=parseInt(e.target.value)||0;saveAll();renderRows();});
+  document.getElementById('btnAddComunaPrecio').addEventListener('click',agregarComunaPrecio);
   document.getElementById('repInp').addEventListener('input',e=>{repartidorTel=e.target.value.trim();saveAll();});
   document.getElementById('btnAddProd').addEventListener('click',addProd);
   // Importar - usar onchange directo en el elemento
