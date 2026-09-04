@@ -851,6 +851,21 @@ function labelToDate(label){
 }
 function sortWeeks(){weeks.sort((a,b)=>labelToDate(b.label)-labelToDate(a.label));}
 
+// Blinda el historial: a los pedidos con delivery que aún no tienen precio congelado,
+// les graba el precio base actual. Así ningún cambio futuro de tarifa por comuna
+// altera pedidos pasados. Se ejecuta una vez al iniciar.
+function blindarDeliveryHistorico(){
+  let cambios=0;
+  (weeks||[]).forEach(w=>{
+    (w.rows||[]).forEach(r=>{
+      if(r.hasDesp && r.despMonto==null){ r.despMonto=despPrice; cambios++; }
+      if(!r.hasDesp && r.despMonto==null){ r.despMonto=0; cambios++; }
+    });
+  });
+  if(cambios>0){ lsSet('dds_weeks', weeks); }
+  return cambios;
+}
+
 function lsGet(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 
@@ -4080,6 +4095,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   syncFromFirebase(()=>{
   // Recargar datos que pueden haber llegado de la nube
   comunaPrecios=lsGet('dds_comuna_precios',comunaPrecios||{});
+  weeks=lsGet('dds_weeks',weeks||[]);
+  // Blindar historial: congela el delivery de pedidos que aún no lo tengan (protege el pasado de cambios de tarifa)
+  blindarDeliveryHistorico();
   // Nav
   document.getElementById('btnForzarSync').addEventListener('click',forzarSync);
   document.getElementById('nav-pedidos').addEventListener('click',()=>showTab('pedidos'));
