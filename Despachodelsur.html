@@ -776,6 +776,10 @@ td.right{text-align:right;font-weight:600}
                 <input type="number" id="nuevaComunaPrecio" placeholder="$" style="width:90px;padding:8px;border:1px solid var(--border2);border-radius:var(--radius);font-family:inherit;font-size:13px;text-align:right">
                 <button class="btn btn-primary" id="btnAddComunaPrecio">Agregar</button>
               </div>
+              <div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--border)">
+                <button class="btn" id="btnCorregirDelivery" style="background:#fef3c7;border-color:#fde68a;color:#92400e;font-size:12px">🔧 Corregir delivery del historial (antes del 03-09)</button>
+                <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Usa esto una sola vez: devuelve al precio base los pedidos con delivery de semanas anteriores al 03-09-2026 (que quedaron con el precio nuevo por error).</div>
+              </div>
             </div>
             <div class="config-section">
               <h3>Productos activos</h3>
@@ -849,6 +853,44 @@ function sortWeeks(){weeks.sort((a,b)=>labelToDate(b.label)-labelToDate(a.label)
 
 function lsGet(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+
+function corregirDeliveryHistorico(){
+  // Fecha desde la cual el precio nuevo por comuna es válido. Antes de esto, todo vuelve al precio base.
+  const FECHA_CORTE=new Date(2026,8,3); // 03-09-2026 (mes 8 = septiembre)
+  const toD=lbl=>{const p=String(lbl||'').split('-'); return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):null;};
+  let corregidos=0, semanasTocadas=0;
+  weeks.forEach(w=>{
+    const fw=toD(w.label);
+    if(!fw) return;
+    if(fw < FECHA_CORTE){
+      let tocada=false;
+      (w.rows||[]).forEach(r=>{
+        // Si el pedido tiene delivery y un monto guardado distinto del base, lo devolvemos al base
+        if(r.hasDesp && r.despMonto!=null && r.despMonto!==despPrice){
+          r.despMonto=despPrice;
+          corregidos++; tocada=true;
+        }
+      });
+      if(tocada) semanasTocadas++;
+    }
+  });
+  if(corregidos===0){
+    toast('✅ No había pedidos que corregir (todo ya está bien)');
+    return;
+  }
+  saveAll();
+  renderRows();
+  // subir a la nube semana por semana para no pisar nada
+  if(db){
+    weeks.forEach((w,idx)=>{
+      const fw=toD(w.label);
+      if(fw && fw<FECHA_CORTE){
+        db.ref(DB_PATH+'/dds_weeks/'+idx+'/rows').set(JSON.parse(JSON.stringify(w.rows||[]))).catch(()=>{});
+      }
+    });
+  }
+  toast('✅ Corregidos '+corregidos+' pedidos en '+semanasTocadas+' semanas anteriores al 03-09',5000);
+}
 
 function forzarSync(){
   if(!db && typeof initFirebase==='function') initFirebase();
@@ -4141,6 +4183,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Config
   document.getElementById('dPriceInp').addEventListener('input',e=>{despPrice=parseInt(e.target.value)||0;saveAll();renderRows();});
   document.getElementById('btnAddComunaPrecio').addEventListener('click',agregarComunaPrecio);
+  document.getElementById('btnCorregirDelivery').addEventListener('click',()=>showModal('Corregir delivery del historial','Esto devuelve al precio base ($'+despPrice.toLocaleString('es-CL')+') el delivery de todos los pedidos en semanas <strong>anteriores al 03-09-2026</strong>. Los pedidos del 03-09 en adelante no se tocan. ¿Continuar?',()=>corregirDeliveryHistorico(),'Sí, corregir'));
   document.getElementById('repInp').addEventListener('input',e=>{repartidorTel=e.target.value.trim();saveAll();});
   document.getElementById('btnAddProd').addEventListener('click',addProd);
   // Importar - usar onchange directo en el elemento
