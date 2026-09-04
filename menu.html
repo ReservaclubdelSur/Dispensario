@@ -113,7 +113,8 @@ header p{font-size:12px;opacity:.75;margin-top:2px}
 <script>
 const DB_PATH='dispensario';
 const WA_CLUB='56998150926'; // WhatsApp del club para renovaciones
-let productos=[], recetas=[], precioDelivery=5000;
+let productos=[], recetas=[], precioDelivery=5000, comunaPrecios={};
+const COMUNAS_STGO=["Cerrillos","Cerro Navia","Conchalí","El Bosque","Estación Central","Huechuraba","Independencia","La Cisterna","La Florida","La Granja","La Pintana","La Reina","Las Condes","Lo Barnechea","Lo Espejo","Lo Prado","Macul","Maipú","Ñuñoa","Pedro Aguirre Cerda","Peñalolén","Providencia","Pudahuel","Quilicura","Quinta Normal","Recoleta","Renca","San Joaquín","San Miguel","San Ramón","Santiago","Vitacura","Puente Alto","San Bernardo"];
 let qtys={}, conDelivery=true, socio=null;
 
 function fmt(n){return '$'+(n||0).toLocaleString('es-CL')}
@@ -149,6 +150,7 @@ function cargar(){
     productos=(d.dds_prods||[]).filter(Boolean);
     recetas=(d.dds_recetas||[]).filter(Boolean);
     precioDelivery=d.dds_desp||5000;
+    comunaPrecios=d.dds_comuna_precios||{};
     // Calcular tope disponible: topeMenu del producto menos lo ya pedido en pedidos web activos
     const web=d.dds_pedidos_web||{};
     const pedidosActivos=Object.values(web).filter(Boolean).filter(p=>p.estado!=='descartado');
@@ -195,9 +197,9 @@ function render(){
       +'<div class="field"><label>RUT</label><input id="fRut" type="text" placeholder="12.345.678-9" oninput="calc()"></div>'
       +'<div class="field"><label>Teléfono</label><input id="fTel" type="tel" inputmode="tel" placeholder="9 1234 5678" oninput="calc()"></div>'
       +'<div class="field"><label>Dirección</label><input id="fDir" type="text" placeholder="Calle, número, depto" oninput="calc()"></div>'
-      +'<div class="field"><label>Comuna</label><input id="fCom" type="text" placeholder="Ej: La Florida" oninput="calc()"></div>'
+      +'<div class="field"><label>Comuna</label><select id="fCom" style="width:100%;border:1.5px solid var(--border2);border-radius:var(--radius);padding:10px 12px;font-size:16px;font-family:inherit;outline:none;background:var(--surface)" onchange="calc()"><option value="">Elige tu comuna…</option>'+COMUNAS_STGO.map(c=>'<option value="'+c+'">'+c+'</option>').join('')+'</select></div>'
     +'</div>'
-    +'<div class="foot">🚚 Delivery '+fmt(precioDelivery)+' · incluido en el total<br>Recibimos pedidos hasta los miércoles al mediodía 🌿</div>';
+    +'<div class="foot">🚚 El delivery se calcula según tu comuna<br>Recibimos pedidos hasta los miércoles al mediodía 🌿</div>';
 
   document.getElementById('bar').style.display='block';
   calc();
@@ -228,19 +230,27 @@ function subtotal(){
   return t;
 }
 
+function deliveryComuna(){
+  const com=(document.getElementById('fCom')||{}).value||'';
+  if(com && comunaPrecios[com]!=null) return comunaPrecios[com];
+  return precioDelivery;
+}
+
 function calc(){
   const sub=subtotal();
-  const tot=sub+(sub>0?precioDelivery:0);
+  const envio=deliveryComuna();
+  const tot=sub+(sub>0?envio:0);
   document.getElementById('total').textContent=fmt(tot);
   const nItems=Object.keys(qtys).length;
   document.getElementById('totalSub').textContent =
-    nItems? (nItems+(nItems===1?' producto':' productos')+' + delivery') : 'Elige tus productos';
+    nItems? (nItems+(nItems===1?' producto':' productos')+' + delivery '+fmt(envio)) : 'Elige tus productos';
 
   const nom=(document.getElementById('fNombre')||{}).value||'';
   const rut=(document.getElementById('fRut')||{}).value||'';
   const tel=(document.getElementById('fTel')||{}).value||'';
   const dir=(document.getElementById('fDir')||{}).value||'';
-  const listo = sub>0 && nom.trim().length>2 && normRut(rut).length>=8 && tel.replace(/\D/g,'').length>=8 && dir.trim().length>3;
+  const com=(document.getElementById('fCom')||{}).value||'';
+  const listo = sub>0 && nom.trim().length>2 && normRut(rut).length>=8 && tel.replace(/\D/g,'').length>=8 && dir.trim().length>3 && com!=='';
   document.getElementById('btnEnviar').disabled=!listo;
 }
 
@@ -299,7 +309,8 @@ function bloqueo(motivo, nombre, f){
 }
 
 function pantallaPago(){
-  const total=subtotal()+precioDelivery;
+  const envio=deliveryComuna();
+  const total=subtotal()+envio;
   pedidoPendiente={
     id:'web_'+Date.now(),
     fecha:new Date().toISOString(),
@@ -331,7 +342,7 @@ function pantallaPago(){
      avisoReceta
     +'<div class="card"><div class="card-h">🧾 Resumen de tu pedido</div>'
       +'<div style="padding:14px 16px;font-size:14px">'+lista
-      +'<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--muted)"><span>Delivery</span><span>'+fmt(precioDelivery)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--muted)"><span>Delivery ('+esc(pedidoPendiente.comuna)+')</span><span>'+fmt(envio)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:10px 0 0;margin-top:8px;border-top:1px solid var(--border);font-weight:800;font-size:18px"><span>Monto total a transferir</span><span style="color:var(--primary)">'+fmt(total)+'</span></div>'
       +'<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius);font-size:13px;color:#92400e;line-height:1.6;margin-top:12px;padding:11px 13px">Una vez sea validada la transferencia, te confirmaremos tu pedido mediante WhatsApp. Envíanos el comprobante al WhatsApp.</div>'
       +'</div></div>'
