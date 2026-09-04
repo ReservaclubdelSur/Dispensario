@@ -327,7 +327,12 @@ function renderRecetas(){
 }
 
 function rowSinDesp(r){ let s=0; productos.forEach(p=>s+=(r.qtys?.[p.id]||0)*(p.price||0)); return s; }
-function rowTotal(r,desp){ return rowSinDesp(r)+(r.hasDesp?desp:0); }
+function despDeFila(r, despBase){
+  if(!r.hasDesp) return 0;
+  if(r.despMonto!=null) return r.despMonto;
+  return despBase;
+}
+function rowTotal(r,desp){ return rowSinDesp(r)+despDeFila(r,desp); }
 
 function renderStats(){
   const desp=data.dds_desp||5000;
