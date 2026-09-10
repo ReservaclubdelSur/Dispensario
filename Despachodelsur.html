@@ -1100,7 +1100,7 @@ function despDeFila(r){
 }
 function rowTotal(r){let s=despDeFila(r);products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
 function rowSinDesp(r){let s=0;products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
-function normalizeNombre(n){return(n||'').toLowerCase().trim().replace(/\s+/g,' ')}
+function normalizeNombre(n){return(n||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ')}
 function toast(msg,dur=2400){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
 
 // ── MODAL ─────────────────────────────────────────────────────────
@@ -3740,11 +3740,12 @@ function renderStats(){
         clienteFreq[key].ingresos+=rowSinDesp(r);
         if(!clienteFreq[key].ultima||wk.label>clienteFreq[key].ultima)clienteFreq[key].ultima=wk.label;
       }
-      // comunas
-      const com=(r.comuna||'').trim();
-      if(com){
-        if(!comunaFreq[com])comunaFreq[com]={pedidos:0,ingresos:0};
-        comunaFreq[com].pedidos++;comunaFreq[com].ingresos+=rowSinDesp(r);
+      // comunas — normalizar para no duplicar por mayúsculas/tildes/espacios
+      const comRaw=(r.comuna||'').trim();
+      if(comRaw){
+        const comKey=comRaw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+        if(!comunaFreq[comKey])comunaFreq[comKey]={pedidos:0,ingresos:0,nombre:comRaw};
+        comunaFreq[comKey].pedidos++;comunaFreq[comKey].ingresos+=rowSinDesp(r);
       }
     });
     ingPorSemana.push({label:wk.label,ingresos:semIngresos,sinDesp:semSinDesp,pagado:semPagado,desp:semDesp,q:semQ,clientes:wk.rows.length});
@@ -3862,10 +3863,10 @@ function renderStats(){
       const x2=cx+r*Math.cos(angle+a),y2=cy+r*Math.sin(angle+a);
       const large=a>Math.PI?1:0;
       const color=palette[i%palette.length];
-      paths+=`<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z" fill="${color}" opacity=".9"><title>${c.nombre||c.comuna||Object.keys(comunaFreq)[i]}: ${c.pedidos} pedidos</title></path>`;
+      paths+=`<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z" fill="${color}" opacity=".9"><title>${esc(c.nombre||c.comuna||'')}: ${c.pedidos} pedidos</title></path>`;
       legends+=`<div style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:5px">
         <span style="width:11px;height:11px;border-radius:2px;background:${color};flex-shrink:0;display:inline-block"></span>
-        <span style="flex:1;font-weight:500">${esc(Object.keys(comunaFreq).sort((a,b)=>comunaFreq[b].pedidos-comunaFreq[a].pedidos)[i])}</span>
+        <span style="flex:1;font-weight:500">${esc(c.nombre||c.comuna||'')}</span>
         <span style="font-weight:700;color:var(--primary)">${c.pedidos}</span>
         <span style="color:var(--muted);font-size:11px">${Math.round(pct*100)}%</span>
       </div>`;
