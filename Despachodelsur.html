@@ -876,30 +876,36 @@ function corregirDeliveryHistorico(){
   if(!db){ toast('⚠️ Sin conexión a la nube. Conéctate e intenta de nuevo.',5000); return; }
 
   toast('🔄 Leyendo datos de la nube…');
-  // 1. Leer las semanas FRESCAS de Firebase (no las de memoria)
+  // Leer las semanas FRESCAS de Firebase, respetando la clave real de cada una (índice u objeto)
   db.ref(DB_PATH+'/dds_weeks').once('value').then(snap=>{
-    let wksNube=snap.val();
-    wksNube=Array.isArray(wksNube)?wksNube:(wksNube?Object.values(wksNube):[]);
-    wksNube=wksNube.filter(Boolean);
+    const raw=snap.val();
+    if(!raw){ toast('⚠️ No hay semanas en la nube',5000); return; }
+    // Recorrer manteniendo la CLAVE original (sea array o objeto)
+    const claves = Array.isArray(raw) ? raw.map((_,i)=>i) : Object.keys(raw);
 
     let corregidos=0;
     const updates={};
-    wksNube.forEach((w,idx)=>{
+    claves.forEach(k=>{
+      const w=raw[k];
+      if(!w) return;
       const fw=toD(w.label);
       if(!fw || fw>=FECHA_CORTE) return;
       let rows=w.rows;
-      rows=Array.isArray(rows)?rows.filter(Boolean):(rows?Object.values(rows).filter(Boolean):[]);
+      const rowsEsArray=Array.isArray(rows);
+      const rowKeys = rowsEsArray ? rows.map((_,i)=>i) : (rows?Object.keys(rows):[]);
       let tocada=false;
-      rows.forEach(r=>{
-        if(r.hasDesp && r.despMonto!=null && r.despMonto!==despPrice){
-          r.despMonto=despPrice; corregidos++; tocada=true;
-        } else if(r.hasDesp && r.despMonto==null){
-          r.despMonto=despPrice; tocada=true;
+      rowKeys.forEach(rk=>{
+        const r=rows[rk];
+        if(!r) return;
+        if(r.hasDesp && r.despMonto!==despPrice){
+          // corrige cualquier delivery que no sea el precio base (incluye null y 8000)
+          updates['dds_weeks/'+k+'/rows/'+rk+'/despMonto']=despPrice;
+          corregidos++; tocada=true;
         } else if(!r.hasDesp && r.despMonto==null){
-          r.despMonto=0; tocada=true;
+          updates['dds_weeks/'+k+'/rows/'+rk+'/despMonto']=0;
+          tocada=true;
         }
       });
-      if(tocada){ updates['dds_weeks/'+idx+'/rows']=JSON.parse(JSON.stringify(rows)); }
     });
 
     if(corregidos===0){
@@ -907,20 +913,13 @@ function corregirDeliveryHistorico(){
       return;
     }
 
-    // 2. Subir todas las correcciones de una vez
-    toast('🔄 Guardando '+corregidos+' correcciones en la nube…');
+    toast('🔄 Guardando '+corregidos+' correcciones…');
     db.ref(DB_PATH).update(updates).then(()=>{
-      // 3. Actualizar también local y refrescar
-      weeks=lsGet('dds_weeks',weeks);
-      Object.keys(updates).forEach(path=>{
-        const idx=parseInt(path.split('/')[1]);
-        if(weeks[idx]) weeks[idx].rows=updates[path];
-      });
-      lsSet('dds_weeks',weeks);
-      renderRows();
-      toast('✅ Listo: '+corregidos+' pedidos corregidos y guardados en la nube',6000);
-    }).catch(e=>toast('⚠️ Error al guardar: '+e.message,6000));
-  }).catch(e=>toast('⚠️ Error al leer la nube: '+e.message,6000));
+      toast('✅ Listo: '+corregidos+' pedidos corregidos en la nube.',5000);
+      // recargar desde la nube para reflejar en pantalla
+      setTimeout(()=>{ if(typeof bajarTodoNube==='function'){bajarTodoNube();} else {location.reload();} }, 1500);
+    }).catch(e=>toast('⚠️ Error al guardar: '+e.message,7000));
+  }).catch(e=>toast('⚠️ Error al leer la nube: '+e.message,7000));
 }
 
 function forzarSync(){
