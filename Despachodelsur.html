@@ -1401,7 +1401,14 @@ function renderHistorial(){
   let totalG=0,totalC=0,totalSinD=0,totalDesp=0;const tpq={};products.forEach(p=>tpq[p.id]=0);
   // filtrar por período si viene de verHistorialPeriodo
   const p = periodoFiltroHistorial ? periodos.find(x=>x.id===periodoFiltroHistorial) : null;
-  const weeksAMostrar = p ? weeks.filter(w=>p.weeks.includes(w.id)) : weeks;
+  let weeksAMostrar;
+  if(p){
+    const desdeC = p.desde ? labelToDate(p.desde).getTime() : -Infinity;
+    const hastaC = p.hasta ? labelToDate(p.hasta).getTime() : Infinity;
+    weeksAMostrar = weeks.filter(w=>{ const t=labelToDate(w.label).getTime(); return t>=desdeC && t<=hastaC; });
+  } else {
+    weeksAMostrar = weeks;
+  }
   const tituloPeriodo = p ? `<div style="background:#e8eef6;padding:8px 18px;font-size:12px;font-weight:600;color:var(--primary);display:flex;align-items:center;justify-content:space-between"><span>📂 Mostrando: ${esc(p.nombre)}</span><button class="btn" style="font-size:11px" onclick="periodoFiltroHistorial=null;renderHistorial()">Ver todos</button></div>` : '';
   const rows=weeksAMostrar.map(wk=>{
     let grand=0,sinD=0,pag=0,flt=0,desp=0;
@@ -3708,12 +3715,19 @@ function renderStats(){
   const selVal=document.getElementById('statsPeriodoFiltro')?.value||'';
   if(selVal&&selVal!==statsPeriodoFiltroVal) statsPeriodoFiltroVal=selVal;
 
-  // filtrar semanas
+  // filtrar semanas — por FECHAS del período (más confiable que la lista de IDs, que puede quedar desactualizada)
   const pFiltro=statsPeriodoFiltroVal?periodos.find(x=>x.id===statsPeriodoFiltroVal):null;
-  console.log('statsPeriodoFiltroVal:', statsPeriodoFiltroVal, '| pFiltro:', pFiltro?.nombre, '| weeks en periodo:', pFiltro?.weeks?.length);
-  const wksRev=pFiltro
-    ?[...weeks].filter(w=>(pFiltro.weeks||[]).includes(w.id)).reverse()
-    :[...weeks].reverse();
+  let wksRev;
+  if(pFiltro){
+    const desdeC = pFiltro.desde ? labelToDate(pFiltro.desde).getTime() : -Infinity;
+    const hastaC = pFiltro.hasta ? labelToDate(pFiltro.hasta).getTime() : Infinity;
+    wksRev=[...weeks].filter(w=>{
+      const t=labelToDate(w.label).getTime();
+      return t>=desdeC && t<=hastaC;
+    }).reverse();
+  } else {
+    wksRev=[...weeks].reverse();
+  }
 
   if(!wksRev.length){container.innerHTML='<div class="empty">Sin datos para este período</div>';return;}
 
