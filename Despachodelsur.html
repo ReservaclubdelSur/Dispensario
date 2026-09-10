@@ -1225,7 +1225,19 @@ function removeRow(rid){
   },'Eliminar');
 }
 function togglePagado(rid,e){e&&e.stopPropagation();const r=cw().rows.find(r=>r.id===rid);if(r){r.pagado=!r.pagado;saveAll();renderRows();}}
-function toggleDesp(rid,e){e&&e.stopPropagation();const r=cw().rows.find(r=>r.id===rid);if(r){r.hasDesp=!r.hasDesp; r.despMonto=r.hasDesp?precioDeliveryComuna(r.comuna):0; saveAll();renderRows();}}
+function toggleDesp(rid,e){e&&e.stopPropagation();const r=cw().rows.find(r=>r.id===rid);if(r){
+  if(r.hasDesp){
+    // desactivando: recordar el monto que tenía para poder restaurarlo
+    r._despMontoPrev = (r.despMonto!=null ? r.despMonto : despPrice);
+    r.hasDesp=false;
+    r.despMonto=0;
+  } else {
+    // reactivando: restaurar el monto que tenía antes (NO recalcular con tarifa de hoy)
+    r.hasDesp=true;
+    r.despMonto = (r._despMontoPrev!=null ? r._despMontoPrev : precioDeliveryComuna(r.comuna));
+  }
+  saveAll();renderRows();
+}}
 function setField(rid,f,v){const r=cw().rows.find(r=>r.id===rid);if(r){r[f]=v; if(f==='comuna'&&r.hasDesp){ r.despMonto=precioDeliveryComuna(v); } saveAll(); if(f==='comuna')renderRows();}}
 function setQty(rid,pid,v){
   const r=cw().rows.find(r=>r.id===rid);
