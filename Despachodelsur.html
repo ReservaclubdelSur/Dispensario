@@ -250,7 +250,8 @@ td.right{text-align:right;font-weight:600}
       <div class="nav-item" id="nav-historial"><span>📋</span>Historial</div>
       <div class="nav-item" id="nav-periodos"><span>🗂️</span>Períodos</div>
       <div class="nav-section">Datos</div>
-      <div class="nav-item" id="nav-socios"><span>🤝</span>Nuevos Socios <span id="sociosBadge" style="display:none;background:#8e44ad;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:auto"></span></div>
+      <!-- Oculto a pedido (no se usa). No borrar: el arranque le conecta un listener y el badge; quitarlo rompe el resto de la inicialización -->
+      <div class="nav-item" id="nav-socios" style="display:none"><span>🤝</span>Nuevos Socios <span id="sociosBadge" style="display:none;background:#8e44ad;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:auto"></span></div>
       <div class="nav-item" id="nav-historial-cliente"><span>👤</span>Historial cliente</div>
       <div class="nav-item" id="nav-clientes"><span>👥</span>Clientes</div>
       <div class="nav-item" id="nav-recetas"><span>🩺</span>Recetas <span id="recetasBadge" style="display:none;background:#e74c3c;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:auto"></span></div>
@@ -2254,19 +2255,19 @@ function toggleDocSocio(sid,did,val){
   // si todos los docs están, sugerir cambiar estado
   const todosOk=DOCS_REQUERIDOS.every(d=>s.docs[d.id]);
   if(todosOk&&s.estado==='contactado'){s.estado='docs';}
-  lsSet('dds_socios',sociosDB);updateSociosBadge();
+  saveAll();updateSociosBadge();
 cargarPedidosWeb();renderSocios();
 }
 
 function cambiarEstadoSocio(sid,estado){
   const s=sociosDB.find(x=>x.id===sid);if(!s)return;
-  s.estado=estado;lsSet('dds_socios',sociosDB);updateSociosBadge();renderSocios();
+  s.estado=estado;saveAll();updateSociosBadge();renderSocios();
 }
 
 function eliminarSocio(sid){
   showModal('Eliminar socio','¿Eliminar este socio?',()=>{
     sociosDB=sociosDB.filter(x=>x.id!==sid);
-    lsSet('dds_socios',sociosDB);updateSociosBadge();renderSocios();
+    saveAll();updateSociosBadge();renderSocios();
     toast('✅ Socio eliminado');
   },'Eliminar');
 }
@@ -2322,7 +2323,7 @@ function nuevoSocio(){
       docs:{}
     };
     sociosDB.push(s);
-    lsSet('dds_socios',sociosDB);
+    saveAll();
     updateSociosBadge();renderSocios();
     toast('✅ Socio agregado');
   },'Guardar',html);
@@ -2369,7 +2370,7 @@ function editarSocio(sid){
     s.direccion=document.getElementById('seDir')?.value.trim()||'';
     s.comuna=document.getElementById('seComuna')?.value.trim()||'';
     s.ciudad=document.getElementById('seCiudad')?.value.trim()||'';
-    lsSet('dds_socios',sociosDB);renderSocios();toast('✅ Socio actualizado');
+    saveAll();renderSocios();toast('✅ Socio actualizado');
   },'Guardar',html);
 }
 let stockDB = lsGet('dds_stock', []);
@@ -2483,7 +2484,7 @@ function nuevoRegistroStock(){
     }));
     const reg={id:'stk_'+Date.now(),fecha:new Date().toISOString(),label:fecha,nota,items:its};
     stockDB.push(reg);
-    lsSet('dds_stock',stockDB);
+    saveAll();
     updateStockBadge();
     renderStock();
     toast('✅ Stock registrado');
@@ -2537,7 +2538,7 @@ function exportarPDFStock(){
 function eliminarRegistroStock(id){
   showModal('Eliminar registro','¿Eliminar este registro de stock?',()=>{
     stockDB=stockDB.filter(r=>r.id!==id);
-    lsSet('dds_stock',stockDB);
+    saveAll();
     updateStockBadge();
     renderStock();
     toast('✅ Registro eliminado');
