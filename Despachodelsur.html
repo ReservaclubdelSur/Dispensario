@@ -648,13 +648,15 @@ td.right{text-align:right;font-weight:600}
             <div class="panel-header">
               <span class="panel-header-title">🩺 Control de recetas médicas</span>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-primary" onclick="nuevaReceta()">➕ Nueva persona</button>
                 <button class="btn btn-wa" id="btnAvisarTodosRecetas">📱 Avisar a todos los próximos</button>
-                <label class="btn btn-primary" style="cursor:pointer">📥 Importar CSV <input type="file" id="recetasFileInput" accept=".csv,.xlsx,.xls" style="display:none"></label>
+                <label class="btn" style="cursor:pointer">📥 Importar Excel <input type="file" id="recetasFileInput" accept=".csv,.xlsx,.xls" style="display:none"></label>
+                <button class="btn" onclick="exportarRecetasExcel()">📤 Descargar Excel</button>
                 <button class="btn" id="btnRecetasLimpiar">🗑 Limpiar todo</button>
               </div>
             </div>
             <div style="padding:10px 18px;background:#f8fafc;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)">
-              💡 En Excel: <strong>Archivo → Guardar como → CSV UTF-8</strong> — luego importa ese archivo aquí
+              💡 Importar <strong>suma</strong> a la lista: agrega a los nuevos y actualiza a los que ya estaban (por RUT), sin borrar a nadie. En Excel guárdalo como <strong>CSV UTF-8</strong>.
             </div>
             <div id="recetasAlertaBanner"></div>
             <div style="padding:10px 18px;border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -2974,7 +2976,7 @@ function renderRecetas() {
   const list = document.getElementById('recetasList'); if (!list) return;
 
   if (!recetasDB.length) {
-    list.innerHTML = '<div class="empty">Sin recetas — importa tu Excel con el botón de arriba</div>';
+    list.innerHTML = '<div class="empty">Sin recetas — agrega una con ➕ Nueva persona, o importa tu Excel con el botón de arriba</div>';
     document.getElementById('recetasAlertaBanner').innerHTML = '';
     return;
   }
@@ -3016,7 +3018,7 @@ function renderRecetas() {
 
   list.innerHTML = `<div class="tbl-wrap"><table>
     <thead><tr>
-      <th>#</th><th>RUT</th><th>Nombre</th><th>Duración</th><th>Gramos/mes</th><th>Vencimiento</th><th>Estado</th><th>Avisar</th>
+      <th>#</th><th>RUT</th><th>Nombre</th><th>Duración</th><th>Gramos/mes</th><th>Sacada</th><th>Vencimiento</th><th>Estado</th><th>Avisar</th><th></th>
     </tr></thead>
     <tbody>${filtered.map((r,i) => {
       const f = parseExcelFecha(r.vencimiento);
@@ -3029,14 +3031,16 @@ function renderRecetas() {
         ? '<a class="btn btn-wa" style="padding:4px 8px;font-size:11px" href="https://wa.me/56'+tel+'?text='+msg+'" target="_blank">📱 Avisar</a>'
         : '<span style="color:var(--hint);font-size:11px">'+(tel?'—':'Sin tel.')+'</span>';
       return `<tr style="${rowBg}">
-        <td style="color:var(--muted)">${r.num||i+1}</td>
+        <td style="color:var(--muted)">${/^\d+$/.test(String(r.num))?r.num:i+1}</td>
         <td style="font-family:monospace;font-size:11px">${esc(r.rut||'')}</td>
         <td style="font-weight:600">${esc(r.nombre||'')}</td>
         <td>${esc(r.duracion||'')}</td>
         <td>${esc(r.gMes||'')}</td>
+        <td style="font-size:12px;color:var(--muted)">${esc(r.sacada||'')}</td>
         <td style="font-size:12px">${r.vencimientoTexto||''}</td>
         <td>${recetaEstadoBadge(e,f)}</td>
         <td>${btnWa}</td>
+        <td><button class="btn" style="padding:4px 8px;font-size:11px" title="Quitar de la lista" onclick="eliminarReceta('${r.id}')">🗑</button></td>
       </tr>`;
     }).join('')}</tbody>
   </table></div>`;
@@ -3053,31 +3057,8 @@ function importarRecetasExcel(file) {
         const lines = text.split(/\r?\n/).filter(l=>l.trim());
         const sep = lines[0].includes(';') ? ';' : ',';
         const header = lines[0].split(sep).map(h=>h.replace(/"/g,'').toUpperCase().trim());
-        const iRut = header.findIndex(h=>h.includes('RUT'));
-        const iNom = header.findIndex(h=>h.includes('NOMBRE'));
-        const iDur = header.findIndex(h=>h.includes('DURACI'));
-        const iGm  = header.findIndex(h=>h.includes('G/MES'));
-        const iVen = header.findIndex(h=>h.includes('VENCIDA')||h.includes('VENCIMIENTO'));
-        if(iNom<0){toast('⚠️ No se encontró columna NOMBRE');return;}
-        recetasDB = lines.slice(1).filter(l=>l.trim()).map((line,i)=>{
-          const cells = line.split(sep).map(c=>c.replace(/^"|"$/g,'').trim());
-          const nombre = cells[iNom]||'';
-          if(!nombre) return null;
-          return {
-            id:'rec_'+Date.now()+'_'+i,
-            num: cells[0]||i+1,
-            rut: iRut>=0?cells[iRut]:'',
-            nombre,
-            duracion: iDur>=0?cells[iDur]:'',
-            gMes: iGm>=0?cells[iGm]:'',
-            vencimiento: iVen>=0?cells[iVen]:'',
-            vencimientoTexto: iVen>=0?cells[iVen]:'',
-          };
-        }).filter(Boolean);
-        lsSet('dds_recetas', recetasDB);
-        updateRecetasBadge();
-        renderRecetas();
-        toast('✅ '+recetasDB.length+' recetas importadas');
+        const filas = lines.slice(1).map(l=>l.split(sep).map(c=>c.replace(/^"|"$/g,'').trim()));
+        mezclarRecetasImportadas(header, filas);
       } catch(err){ toast('⚠️ Error al leer CSV: '+err.message); }
     };
     reader.readAsText(file, 'UTF-8');
@@ -3091,30 +3072,147 @@ function importarRecetasExcel(file) {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws,{header:1});
         const header = (rows[0]||[]).map(h=>(h||'').toString().toUpperCase().trim());
-        const iRut = header.findIndex(h=>h.includes('RUT'));
-        const iNom = header.findIndex(h=>h.includes('NOMBRE'));
-        const iDur = header.findIndex(h=>h.includes('DURACI'));
-        const iGm  = header.findIndex(h=>h.includes('G/MES'));
-        const iVen = header.findIndex(h=>h.includes('VENCIDA')||h.includes('VENCIMIENTO'));
-        recetasDB = rows.slice(1).filter(r=>r[iNom]).map((r,i)=>({
-          id:'rec_'+Date.now()+'_'+i,
-          num: r[0]||i+1,
-          rut: iRut>=0?r[iRut]:'',
-          nombre: r[iNom]||'',
-          duracion: iDur>=0?r[iDur]:'',
-          gMes: iGm>=0?r[iGm]:'',
-          vencimiento: iVen>=0?r[iVen]:'',
-          vencimientoTexto: iVen>=0?String(r[iVen]||'').trim():'',
-        }));
-        lsSet('dds_recetas', recetasDB);
-        updateRecetasBadge();
-        renderRecetas();
-        toast('✅ '+recetasDB.length+' recetas importadas');
+        mezclarRecetasImportadas(header, rows.slice(1));
       } catch(err){ toast('⚠️ Error: '+err.message); }
     };
     reader.readAsArrayBuffer(file);
   }
 }
+
+// Misma persona = mismo RUT (sin puntos ni guion); si no hay RUT, mismo nombre
+function claveReceta(r){
+  const rut=String(r.rut||'').replace(/[^0-9kK]/g,'').toLowerCase();
+  return rut ? 'rut:'+rut : 'nom:'+nombreNorm(r.nombre);
+}
+function siguienteNumReceta(){
+  const nums=recetasDB.map(r=>String(r.num)).filter(n=>/^\d+$/.test(n)).map(Number);
+  return nums.length?Math.max(...nums)+1:1;
+}
+
+// Importar SUMA: agrega nuevas, actualiza las que ya estaban y no borra a quien solo está en el programa.
+// Conserva el id de las existentes: la sync con Firebase une por id, y un id nuevo duplicaría la receta.
+function mezclarRecetasImportadas(header, filas){
+  const col=f=>header.findIndex(f);
+  const iRut=col(h=>h.includes('RUT')), iNom=col(h=>h.includes('NOMBRE')), iDur=col(h=>h.includes('DURACI')),
+        iG=col(h=>h==='G'), iGm=col(h=>h.includes('G/MES')), iSac=col(h=>h.includes('SACADA')||h.includes('EMISI')),
+        iVen=col(h=>h.includes('VENCIDA')||h.includes('VENCIMIENTO'));
+  if(iNom<0){toast('⚠️ No se encontró columna NOMBRE');return;}
+  const txt=(c,i)=>i>=0?String(c[i]==null?'':c[i]).trim():'';
+  // Las importaciones viejas guardaban el RUT como número de fila: renumerar 1..N
+  if(recetasDB.some(r=>!/^\d+$/.test(String(r.num)))) recetasDB.forEach((r,i)=>r.num=i+1);
+  const porClave={}; recetasDB.forEach(r=>porClave[claveReceta(r)]=r);
+  let sig=siguienteNumReceta(), nuevas=0, actualizadas=0;
+  const vistas=new Set();
+  filas.forEach((c,i)=>{
+    const nombre=txt(c,iNom).replace(/\s+/g,' ');
+    if(!nombre) return;
+    const datos={rut:txt(c,iRut), nombre, duracion:txt(c,iDur), g:txt(c,iG), gMes:txt(c,iGm),
+      sacada:txt(c,iSac), vencimiento:txt(c,iVen), vencimientoTexto:txt(c,iVen)};
+    const k=claveReceta(datos);
+    const existente=porClave[k];
+    // Si la persona se repite en el Excel, gana la última fila (suele ser la renovación)
+    if(existente){
+      Object.assign(existente,datos);
+      if(!vistas.has(k) && !existente._nueva) actualizadas++;
+    } else {
+      const r={id:'rec_'+Date.now()+'_'+i, num:sig++, ...datos, _nueva:true};
+      recetasDB.push(r); porClave[k]=r; nuevas++;
+    }
+    vistas.add(k);
+  });
+  recetasDB.forEach(r=>delete r._nueva);
+  const soloPrograma=recetasDB.filter(r=>!vistas.has(claveReceta(r))).length;
+  saveAll();
+  updateRecetasBadge();
+  renderRecetas();
+  const pl=(n,uno,varios)=>n+' '+(n===1?uno:varios);
+  toast('✅ Excel importado: '+pl(nuevas,'nueva','nuevas')+', '+pl(actualizadas,'actualizada','actualizadas')
+    +(soloPrograma?(soloPrograma===1?', y se mantuvo 1 que no está en el Excel':', y se mantuvieron '+soloPrograma+' que no están en el Excel'):''), 5000);
+}
+
+// Descarga la lista con las mismas columnas del Excel de recetas (CSV con ; y BOM para que Excel lo abra bien)
+function exportarRecetasExcel(){
+  if(!recetasDB.length){toast('⚠️ No hay recetas para descargar');return;}
+  const limpio=v=>String(v==null?'':v).replace(/[;\r\n]+/g,' ').trim();
+  const gDia=r=>{
+    if(r.g) return r.g;
+    const m=parseFloat(String(r.gMes||'').replace(',','.'));
+    return isNaN(m)?'':String(Math.round(m/30*100)/100).replace('.',',');
+  };
+  const filas=[['RUT','NOMBRE','RECETA SACADA','DURACION','G','G/MES','RECETA VENCIDA','X VENCER']];
+  recetasDB.forEach(r=>filas.push([r.rut,r.nombre,r.sacada,r.duracion,gDia(r),r.gMes,r.vencimientoTexto||r.vencimiento,''].map(limpio)));
+  const blob=new Blob(['﻿'+filas.map(f=>f.join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='recetas-'+today()+'.csv';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast('✅ '+recetasDB.length+' recetas descargadas');
+}
+
+// Valida DD-MM-AAAA de verdad: new Date(2026,12,32) no falla, se pasa a 2027
+function fechaRecetaValida(s){
+  const m=String(s||'').trim().match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if(!m) return !!parseExcelFecha(s); // deja pasar los otros formatos que acepta el importador
+  const d=+m[1], mes=+m[2], a=+m[3];
+  const f=new Date(a,mes-1,d);
+  return f.getDate()===d && f.getMonth()===mes-1 && f.getFullYear()===a;
+}
+
+function eliminarReceta(id){
+  const r=recetasDB.find(x=>x.id===id);
+  if(!r) return;
+  showModal('Quitar de recetas','¿Quitar a <strong>'+esc(r.nombre)+'</strong> de la lista de recetas?<br><span style="font-size:12px;color:var(--muted)">No borra al cliente ni sus pedidos, solo esta receta.</span>',()=>{
+    recetasDB=recetasDB.filter(x=>x.id!==id);
+    saveAll();
+    updateRecetasBadge();
+    renderRecetas();
+    toast('✅ '+r.nombre+' quitado de recetas');
+  },'Quitar');
+}
+
+function nuevaReceta(pre){
+  pre = pre||{};
+  const inp=(id,ph,val)=>'<input type="text" id="'+id+'" value="'+esc(val||'')+'" placeholder="'+ph+'" style="width:100%;border:1px solid var(--border2);border-radius:var(--radius);padding:7px 10px;font-family:inherit;font-size:13px;outline:none">';
+  const campo=(lab,html)=>'<div style="margin-bottom:8px"><label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:3px">'+lab+'</label>'+html+'</div>';
+  const html=campo('Nombre completo',inp('recNombre','Ej: Juan Pérez',pre.nombre))
+    +campo('RUT',inp('recRut','12.345.678-9',pre.rut))
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+      +campo('Duración',inp('recDuracion','Ej: 1 año',pre.duracion))
+      +campo('Gramos/mes',inp('recGMes','Ej: 30',pre.gMes))
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+      +campo('Receta sacada',inp('recSacada','DD-MM-AAAA',pre.sacada))
+      +campo('Vence el',inp('recVenc','DD-MM-AAAA',pre.vencimiento))
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--muted)">💡 El aviso por WhatsApp toma el teléfono de la base de clientes, así que el nombre tiene que escribirse igual que allá.</div>';
+  showModal('Nueva persona en recetas','',()=>{
+    const v={
+      nombre:(document.getElementById('recNombre')?.value||'').trim(),
+      rut:(document.getElementById('recRut')?.value||'').trim(),
+      duracion:(document.getElementById('recDuracion')?.value||'').trim(),
+      gMes:(document.getElementById('recGMes')?.value||'').trim(),
+      sacada:(document.getElementById('recSacada')?.value||'').trim(),
+      vencimiento:(document.getElementById('recVenc')?.value||'').trim()
+    };
+    if(!v.nombre){ toast('⚠️ Falta el nombre'); setTimeout(()=>nuevaReceta(v),150); return; }
+    if(v.sacada && !fechaRecetaValida(v.sacada)){ toast('⚠️ "Receta sacada" inválida — usa DD-MM-AAAA'); setTimeout(()=>nuevaReceta(v),150); return; }
+    if(v.vencimiento && !fechaRecetaValida(v.vencimiento)){ toast('⚠️ "Vence el" inválida — usa DD-MM-AAAA'); setTimeout(()=>nuevaReceta(v),150); return; }
+    const dup=recetasDB.some(r=>nombreNorm(r.nombre)===nombreNorm(v.nombre));
+    recetasDB.push({
+      id:'rec_'+Date.now(),
+      num: siguienteNumReceta(),
+      rut:v.rut, nombre:v.nombre, duracion:v.duracion, gMes:v.gMes,
+      sacada:v.sacada,
+      vencimiento:v.vencimiento, vencimientoTexto:v.vencimiento
+    });
+    saveAll();
+    updateRecetasBadge();
+    renderRecetas();
+    toast(dup?('⚠️ Agregado, pero ya había una receta de '+v.nombre+' — revisa que no quede duplicada'):('✅ '+v.nombre+' agregado a recetas'), dup?4200:2400);
+  },'Guardar',html);
+}
+
 const TPL_DEFAULT={
   confirmacion:'🌿 *Dispensario del Sur*\nHola {nombre}, tu pedido está confirmado:\n\n{productos}\n{delivery}\n💰 *Total: {total}*\n{direccion}{obs}',
   cobro:'🌿 *Dispensario del Sur*\nHola {nombre} 👋\nTe recordamos que tienes un pago pendiente de *{total}*.\n¡Gracias por confiar en nosotros! 🙏',
@@ -4334,7 +4432,7 @@ document.getElementById('btnAvisarTodosRecetas').addEventListener('click', avisa
 document.getElementById('recetasFileInput').addEventListener('change',e=>{if(e.target.files[0])importarRecetasExcel(e.target.files[0]);});
 document.getElementById('recetasSearch').addEventListener('input',renderRecetas);
 document.getElementById('recetasFiltro').addEventListener('change',renderRecetas);
-document.getElementById('btnRecetasLimpiar').addEventListener('click',()=>showModal('Limpiar recetas','¿Eliminar todas las recetas importadas?',()=>{recetasDB=[];lsSet('dds_recetas',[]);updateRecetasBadge();renderRecetas();toast('✅ Recetas eliminadas');},'Limpiar'));
+document.getElementById('btnRecetasLimpiar').addEventListener('click',()=>showModal('Limpiar recetas','¿Eliminar todas las recetas importadas?',()=>{recetasDB=[];saveAll();updateRecetasBadge();renderRecetas();toast('✅ Recetas eliminadas');},'Limpiar'));
 // Badge al iniciar
 updateRecetasBadge();
 updateStockBadge();
