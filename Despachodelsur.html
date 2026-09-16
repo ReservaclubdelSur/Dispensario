@@ -1056,7 +1056,6 @@ let repartidorTel=lsGet('dds_rep','');
 let expandedRow=null;
 let parsedPedido=null;
 let pendingImportRows=null;
-let pendingImportData=null;
 let difSeleccionados=new Set();
 if(!weeks.find(w=>w.id===curId))curId=weeks[weeks.length-1].id;
 
@@ -2712,6 +2711,7 @@ function guardarArchivo(){
     dds_periodo_actual: lsGet('dds_periodo_actual',''),
     dds_stock: lsGet('dds_stock',[]),
     dds_socios: lsGet('dds_socios',[]),
+    dds_comuna_precios: lsGet('dds_comuna_precios',{}),
   };
   const blob = new Blob([JSON.stringify(datos,null,2)],{type:'application/json'});
   const a = document.createElement('a');
@@ -2748,8 +2748,12 @@ function restaurarDesdeJSON(file){
       if(datos.dds_ign_dup) localStorage.setItem('dds_ign_dup', JSON.stringify(datos.dds_ign_dup));
       if(datos.dds_periodos) localStorage.setItem('dds_periodos', JSON.stringify(datos.dds_periodos));
       if(datos.dds_periodo_actual) localStorage.setItem('dds_periodo_actual', datos.dds_periodo_actual);
+      if(datos.dds_stock) localStorage.setItem('dds_stock', JSON.stringify(datos.dds_stock));
+      if(datos.dds_socios) localStorage.setItem('dds_socios', JSON.stringify(datos.dds_socios));
+      if(datos.dds_comuna_precios) localStorage.setItem('dds_comuna_precios', JSON.stringify(datos.dds_comuna_precios));
 
-      document.getElementById('restaurarBanner').style.display='none';
+      const bannerRest=document.getElementById('restaurarBanner');
+      if(bannerRest) bannerRest.style.display='none';
       weeks = lsGet('dds_weeks',[]);
       products = lsGet('dds_prods', products);
       clientesDB = lsGet('dds_clientes',[]);
@@ -2758,8 +2762,14 @@ function restaurarDesdeJSON(file){
       repartidorTel = lsGet('dds_rep','');
       periodos = lsGet('dds_periodos',[]);
       periodoActual = lsGet('dds_periodo_actual','');
+      stockDB = lsGet('dds_stock',[]);
+      sociosDB = lsGet('dds_socios',[]);
+      comunaPrecios = lsGet('dds_comuna_precios',{});
+      saveAll(); // lo restaurado también va a la nube, si no el resto de los programas sigue con lo viejo
       renderAll();
       updateRecetasBadge();
+      updateStockBadge();
+      updateSociosBadge();
 
       // Si el backup no tenía períodos, ofrecer separar automáticamente
       if(!datos.dds_periodos && weeks.length){
@@ -4191,12 +4201,10 @@ function doImportCSV(label){
 }
 
 // ── BACKUP ────────────────────────────────────────────────────────
-function exportBackup(){
-  const data={version:2,exportDate:new Date().toISOString(),weeks,products,clientesDB,despPrice,repartidorTel};
-  const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='dispensario_backup_'+today()+'.json';a.click();
-  toast('✅ Backup descargado');
-}
+// Un solo backup para toda la app: el de la pestaña Backup y el botón 💾 Guardar bajan lo mismo.
+// Antes este guardaba solo semanas/productos/clientes y decía "completo": recetas, stock, socios,
+// períodos, plantillas y precios por comuna no quedaban en el archivo.
+function exportBackup(){ guardarArchivo(); }
 function handleBackupFile(file){
   if(!file)return;
   document.getElementById('backupFileName').textContent=file.name;
@@ -4204,16 +4212,15 @@ function handleBackupFile(file){
   reader.onload=ev=>{
     try{
       const data=JSON.parse(ev.target.result);
-      if(!data.weeks||!data.products)throw new Error('Formato inválido');
-      pendingImportData=data;
-      showModal('⚠️ Confirmar importación','Se reemplazarán <strong>todos los datos actuales</strong>. No se puede deshacer.',()=>{
-        weeks=data.weeks||[];products=data.products||[];clientesDB=data.clientesDB||[];
-        despPrice=data.despPrice||5000;repartidorTel=data.repartidorTel||'';
-        curId=weeks.length?weeks[0].id:'';
-        periodos=[];periodoActual='';
-        sortWeeks();
-        saveAll();renderAll();renderWeekSel();renderRows();toast('✅ Backup restaurado');
-      },'Importar',`📦 <strong>${(data.weeks||[]).length}</strong> semanas · <strong>${(data.products||[]).length}</strong> productos · <strong>${(data.clientesDB||[]).length}</strong> clientes`);
+      const semanas=data.dds_weeks||data.weeks||null;
+      if(!semanas)throw new Error('Formato inválido');
+      const n=(v)=>Array.isArray(v)?v.length:0;
+      const resumen=`📦 <strong>${n(semanas)}</strong> semanas · <strong>${n(data.dds_prods||data.products)}</strong> productos · `
+        +`<strong>${n(data.dds_clientes||data.clientesDB)}</strong> clientes · <strong>${n(data.dds_recetas)}</strong> recetas · `
+        +`<strong>${n(data.dds_stock)}</strong> registros de stock`;
+      showModal('⚠️ Confirmar importación','Se reemplazarán <strong>todos los datos actuales</strong>, acá y en la nube. No se puede deshacer.',()=>{
+        restaurarDesdeJSON(file);
+      },'Importar',resumen);
     }catch(err){toast('❌ Archivo inválido: '+err.message);}
   };
   reader.readAsText(file,'UTF-8');
