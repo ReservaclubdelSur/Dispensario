@@ -1252,7 +1252,7 @@ function toggleExpand(rid){expandedRow=expandedRow===rid?null:rid;renderRows();}
 function autocompleteNombre(rid,val){
   setField(rid,'nombre',val);
   const c=clientesDB.find(c=>normalizeNombre(c.nombre)===normalizeNombre(val));
-  if(c){const row=cw().rows.find(r=>r.id===rid);if(row){if(!row.telefono&&c.telefono)row.telefono=c.telefono;if(!row.comuna&&c.comuna)row.comuna=c.comuna;if(!row.direccion&&c.direccion)row.direccion=c.direccion;saveAll();renderRows();toast('✅ Datos de '+c.nombre+' cargados');}}
+  if(c){const row=cw().rows.find(r=>r.id===rid);if(row){if(!row.telefono&&c.telefono)row.telefono=c.telefono;if(!row.comuna&&c.comuna){row.comuna=c.comuna;if(row.hasDesp)row.despMonto=precioDeliveryComuna(c.comuna);}if(!row.direccion&&c.direccion)row.direccion=c.direccion;saveAll();renderRows();toast('✅ Datos de '+c.nombre+' cargados');}}
 }
 function renderRows(){
   renderWeekSel();
@@ -4151,7 +4151,7 @@ function parseAndPreviewCSV(text){
     prodCols.forEach(({idx,pid})=>{qtys[pid]=parseInt((cells[idx]||'0').replace(/[^0-9]/g,''))||0;});
     const despRaw=iDesp>=0?parseFloat((cells[iDesp]||'0').replace(/[$.]/g,'').replace(',','.'))||0:0;
     const pagadoRaw=iPagado>=0?(cells[iPagado]||'').trim().toUpperCase():'';
-    rows.push({id:uid(),nombre,telefono:'',comuna:iComuna>=0?(cells[iComuna]||'').trim():'',direccion:iDir>=0?(cells[iDir]||'').trim():'',qtys,hasDesp:despRaw>0,pagado:pagadoRaw.includes('PAG')||pagadoRaw==='1',obs:iObs>=0?(cells[iObs]||'').trim():''});
+    rows.push({id:uid(),nombre,telefono:'',comuna:iComuna>=0?(cells[iComuna]||'').trim():'',direccion:iDir>=0?(cells[iDir]||'').trim():'',qtys,hasDesp:despRaw>0,despMonto:despRaw>=1000?despRaw:(despRaw>0?precioDeliveryComuna(iComuna>=0?(cells[iComuna]||'').trim():''):0),pagado:pagadoRaw.includes('PAG')||pagadoRaw==='1',obs:iObs>=0?(cells[iObs]||'').trim():''});
   }
   if(!rows.length){toast('⚠️ No se encontraron pedidos válidos');return;}
   pendingImportRows=rows;
@@ -4416,7 +4416,7 @@ function parsearMensaje(){
     });
   });
   if(nombre){const c=clientesDB.find(c=>normalizeNombre(c.nombre)===normalizeNombre(nombre));if(c){if(!telefono&&c.telefono)telefono=c.telefono;if(!comuna&&c.comuna)comuna=c.comuna;if(!direccion&&c.direccion)direccion=c.direccion;}}
-  parsedPedido={id:uid(),nombre,telefono,comuna,direccion,qtys,hasDesp,pagado:false,obs};
+  parsedPedido={id:uid(),nombre,telefono,comuna,direccion,qtys,hasDesp,despMonto:hasDesp?precioDeliveryComuna(comuna):0,pagado:false,obs};
   const prods=products.filter(p=>qtys[p.id]>0).map(p=>`<div class="pr-row"><span>${esc(p.name)}</span><strong>${qtys[p.id]}</strong></div>`).join('');
   const res=document.getElementById('parseResult');
   res.style.display='block';
@@ -4424,7 +4424,7 @@ function parsearMensaje(){
     <div class="pr-row"><span>👤 Nombre</span><strong>${esc(nombre||'—')}</strong></div>
     <div class="pr-row"><span>📍 Comuna</span><strong>${esc(comuna||'—')}</strong></div>
     <div class="pr-row"><span>🏠 Dirección</span><strong>${esc(direccion||'—')}</strong></div>
-    <div class="pr-row"><span>🚚 Delivery</span><strong>${hasDesp?'Sí':'No'}</strong></div>
+    <div class="pr-row"><span>🚚 Delivery</span><strong>${hasDesp?fmt(precioDeliveryComuna(comuna)):'No'}</strong></div>
     ${prods?'<div style="margin-top:8px;font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Productos</div>'+prods:'<div style="color:var(--red);margin-top:6px;font-size:12px">⚠️ No se detectaron productos</div>'}`;
   document.getElementById('parseAddBtn').style.display='block';
 }
