@@ -1050,7 +1050,7 @@ if(!_cli.length){lsSet('dds_clientes',BACKUP_CLIENTES);}
 let curId=lsGet('dds_cur',weeks[weeks.length-1].id);
 let despPrice=lsGet('dds_desp',5000);
 let comunaPrecios=lsGet('dds_comuna_precios',{}); // {comuna: precio}
-const COMUNAS_STGO=["Cerrillos","Cerro Navia","Conchalí","El Bosque","Estación Central","Huechuraba","Independencia","La Cisterna","La Florida","La Granja","La Pintana","La Reina","Las Condes","Lo Barnechea","Lo Espejo","Lo Prado","Macul","Maipú","Ñuñoa","Pedro Aguirre Cerda","Peñalolén","Providencia","Pudahuel","Quilicura","Quinta Normal","Recoleta","Renca","San Joaquín","San Miguel","San Ramón","Santiago","Vitacura","Puente Alto","San Bernardo"];
+const COMUNAS_STGO=["Cerrillos","Cerro Navia","Conchalí","El Bosque","Estación Central","Huechuraba","Independencia","La Cisterna","La Florida","La Granja","La Pintana","La Reina","Las Condes","Lo Barnechea","Lo Espejo","Lo Prado","Macul","Maipú","Ñuñoa","Padre Hurtado","Pedro Aguirre Cerda","Peñalolén","Pirque","Providencia","Pudahuel","Quilicura","Quinta Normal","Recoleta","Renca","San Joaquín","San José de Maipo","San Miguel","San Ramón","Santiago","Vitacura","Puente Alto","San Bernardo"];
 let clientesDB=lsGet('dds_clientes',[]);
 let repartidorTel=lsGet('dds_rep','');
 let expandedRow=null;
@@ -1088,8 +1088,15 @@ function uid(){return 'x'+Date.now()+Math.floor(Math.random()*9999)}
 function fmt(n){return '$'+(Math.round(n)||0).toLocaleString('es-CL')}
 function cw(){return weeks.find(w=>w.id===curId)||weeks[0]}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+function normComuna(c){return String(c||"").toLowerCase().normalize("NFD").replace(/[0300-036f]/g,"").replace(/[^a-z0-9]/g,"");}
+// Busca el precio aunque la comuna esté escrita distinto: "MAIPU", "Maipu" y "Maipú" son la misma.
 function precioDeliveryComuna(comuna){
-  if(comuna && comunaPrecios && comunaPrecios[comuna]!=null) return comunaPrecios[comuna];
+  if(comuna && comunaPrecios){
+    if(comunaPrecios[comuna]!=null) return comunaPrecios[comuna];
+    const n=normComuna(comuna);
+    const k=Object.keys(comunaPrecios).find(x=>normComuna(x)===n);
+    if(k) return comunaPrecios[k];
+  }
   return despPrice;
 }
 // Delivery de una fila: usa el monto que quedó guardado en el pedido (histórico real).

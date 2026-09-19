@@ -114,7 +114,7 @@ header p{font-size:12px;opacity:.75;margin-top:2px}
 const DB_PATH='dispensario';
 const WA_CLUB='56998150926'; // WhatsApp del club para renovaciones
 let productos=[], recetas=[], precioDelivery=5000, comunaPrecios={};
-const COMUNAS_STGO=["Cerrillos","Cerro Navia","Conchalí","El Bosque","Estación Central","Huechuraba","Independencia","La Cisterna","La Florida","La Granja","La Pintana","La Reina","Las Condes","Lo Barnechea","Lo Espejo","Lo Prado","Macul","Maipú","Ñuñoa","Pedro Aguirre Cerda","Peñalolén","Providencia","Pudahuel","Quilicura","Quinta Normal","Recoleta","Renca","San Joaquín","San Miguel","San Ramón","Santiago","Vitacura","Puente Alto","San Bernardo"];
+const COMUNAS_STGO=["Cerrillos","Cerro Navia","Conchalí","El Bosque","Estación Central","Huechuraba","Independencia","La Cisterna","La Florida","La Granja","La Pintana","La Reina","Las Condes","Lo Barnechea","Lo Espejo","Lo Prado","Macul","Maipú","Ñuñoa","Padre Hurtado","Pedro Aguirre Cerda","Peñalolén","Pirque","Providencia","Pudahuel","Quilicura","Quinta Normal","Recoleta","Renca","San Joaquín","San José de Maipo","San Miguel","San Ramón","Santiago","Vitacura","Puente Alto","San Bernardo"];
 let qtys={}, conDelivery=true, socio=null;
 
 function fmt(n){return '$'+(n||0).toLocaleString('es-CL')}
@@ -230,9 +230,15 @@ function subtotal(){
   return t;
 }
 
+function normComuna(c){return String(c||"").toLowerCase().normalize("NFD").replace(/[0300-036f]/g,"").replace(/[^a-z0-9]/g,"");}
 function deliveryComuna(){
-  const com=(document.getElementById('fCom')||{}).value||'';
-  if(com && comunaPrecios[com]!=null) return comunaPrecios[com];
+  const com=(document.getElementById("fCom")||{}).value||"";
+  if(com && comunaPrecios){
+    if(comunaPrecios[com]!=null) return comunaPrecios[com];
+    const n=normComuna(com);
+    const k=Object.keys(comunaPrecios).find(x=>normComuna(x)===n);
+    if(k) return comunaPrecios[k];
+  }
   return precioDelivery;
 }
 
