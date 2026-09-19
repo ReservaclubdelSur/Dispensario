@@ -1380,7 +1380,7 @@ function pintarAvisoRevisada(){
 function renderKpisAndGrams(){
   const wk=cw();let grand=0,despTotal=0,pagado=0,falta=0;
   const colQ={};products.forEach(p=>colQ[p.id]=0);
-  wk.rows.forEach(row=>{const t=rowTotal(row);grand+=t;if(row.hasDesp)despTotal+=despPrice;if(row.pagado)pagado+=t;else falta+=t;products.forEach(p=>colQ[p.id]+=(row.qtys[p.id]||0));});
+  wk.rows.forEach(row=>{const t=rowTotal(row);grand+=t;despTotal+=despDeFila(row);if(row.pagado)pagado+=t;else falta+=t;products.forEach(p=>colQ[p.id]+=(row.qtys[p.id]||0));});
   document.getElementById('kpis').innerHTML=
     `<div class="kpi kpi-accent"><div class="kpi-l">Total semana</div><div class="kpi-v">${fmt(grand)}</div></div>`+
     `<div class="kpi"><div class="kpi-l">Sin delivery</div><div class="kpi-v">${fmt(grand-despTotal)}</div></div>`+
@@ -1414,7 +1414,7 @@ function renderHistorial(){
   const tituloPeriodo = p ? `<div style="background:#e8eef6;padding:8px 18px;font-size:12px;font-weight:600;color:var(--primary);display:flex;align-items:center;justify-content:space-between"><span>📂 Mostrando: ${esc(p.nombre)}</span><button class="btn" style="font-size:11px" onclick="periodoFiltroHistorial=null;renderHistorial()">Ver todos</button></div>` : '';
   const rows=weeksAMostrar.map(wk=>{
     let grand=0,sinD=0,pag=0,flt=0,desp=0;
-    wk.rows.forEach(r=>{const t=rowTotal(r);grand+=t;sinD+=rowSinDesp(r);if(r.hasDesp)desp+=despPrice;if(r.pagado)pag+=t;else flt+=t;products.forEach(p=>tpq[p.id]+=(r.qtys[p.id]||0));});
+    wk.rows.forEach(r=>{const t=rowTotal(r);grand+=t;sinD+=rowSinDesp(r);desp+=despDeFila(r);if(r.pagado)pag+=t;else flt+=t;products.forEach(p=>tpq[p.id]+=(r.qtys[p.id]||0));});
     totalG+=grand;totalC+=wk.rows.length;totalSinD+=sinD;totalDesp+=desp;
     return `<div class="hist-row">
       <div class="hist-info"><div class="hist-label">${esc(wk.label)}</div>
@@ -1590,7 +1590,7 @@ function exportarResumenCSV(){
   const tdT = 'style="padding:6px;border:1px solid #999;background:#eff6ff;font-weight:bold;text-align:center"';
   html += '<tr><td '+tdT+'>TOTAL</td><td '+tdT+'></td><td '+tdT+'></td><td '+tdT+'></td>'
     +prodsActivos.map(p=>'<td '+tdT+'>'+wk.rows.reduce((a,r)=>a+(r.qtys[p.id]||0),0)+'</td>').join('')
-    +'<td '+tdT+'>'+wk.rows.filter(r=>r.hasDesp).length*despPrice+'</td>'
+    +'<td '+tdT+'>'+wk.rows.reduce((a,r)=>a+despDeFila(r),0)+'</td>'
     +'<td '+tdT+'>'+wk.rows.reduce((a,r)=>a+rowTotal(r),0)+'</td><td '+tdT+'></td><td '+tdT+'></td></tr></table>';
 
   const excel = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>'+html+'</body></html>';
@@ -3245,7 +3245,7 @@ function applyTpl(tpl,row){
     nombre: row.nombre||'Cliente',
     productos: lineas.join('\n')||'(sin productos)',
     total: fmt(rowTotal(row)),
-    delivery: row.hasDesp?'🚚 Delivery: '+fmt(despPrice):'',
+    delivery: row.hasDesp?'🚚 Delivery: '+fmt(despDeFila(row)):'',
     direccion: row.direccion?(row.direccion+(row.comuna?', '+row.comuna:'')):'',
     obs: row.obs?'\n📝 '+row.obs:''
   };
@@ -3853,7 +3853,7 @@ function renderStats(){
     let semIngresos=0,semSinDesp=0,semPagado=0,semDesp=0;
     const semQ={};products.forEach(p=>semQ[p.id]=0);
     wk.rows.forEach(r=>{
-      const t=rowTotal(r);semIngresos+=t;semSinDesp+=rowSinDesp(r);if(r.pagado)semPagado+=t;if(r.hasDesp)semDesp+=despPrice;
+      const t=rowTotal(r);semIngresos+=t;semSinDesp+=rowSinDesp(r);if(r.pagado)semPagado+=t;semDesp+=despDeFila(r);
       products.forEach(p=>{ semQ[p.id]+=(r.qtys[p.id]||0); totalesPorProd[p.id]+=(r.qtys[p.id]||0); });
       // clientes frecuentes
       const key=normalizeNombre(r.nombre);

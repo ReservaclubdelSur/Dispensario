@@ -348,7 +348,7 @@ function renderStats(){
   const prodConteo={};
   wksRev.forEach(w=>(w.rows||[]).forEach(r=>{
     ingresoTotal+=rowTotal(r,desp);
-    if(r.hasDesp) alRepartidor+=desp;
+    alRepartidor+=despDeFila(r,desp);
     productos.forEach(p=>{ const q=r.qtys?.[p.id]||0; if(q>0){ unidades+=q; prodConteo[p.id]=(prodConteo[p.id]||0)+q; } });
   }));
   const neto=ingresoTotal-alRepartidor;
