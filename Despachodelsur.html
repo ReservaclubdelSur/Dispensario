@@ -4269,12 +4269,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   
   document.getElementById('nav-periodos').addEventListener('click',()=>showTab('periodos'));
   document.getElementById('btnReorganizarPeriodos').addEventListener('click',reorganizarPeriodos);
-  document.getElementById('btnCerrarPeriodo').addEventListener('click',()=>showModal(
-    'Cerrar período actual',
-    '¿Cerrar el período actual y empezar uno nuevo? El historial quedará guardado y accesible.',
-    ()=>cerrarPeriodoYEmpezarNuevo(),
-    'Cerrar período'
-  ));
+  // Llama directo: cerrarPeriodoYEmpezarNuevo ya abre su propia ventana de confirmación (pide la fecha).
+  // Con un showModal envolviendo a otro, el primero cerraba al segundo y el botón no hacía nada.
+  document.getElementById('btnCerrarPeriodo').addEventListener('click',cerrarPeriodoYEmpezarNuevo);
   document.getElementById('nav-historial').addEventListener('click',()=>showTab('historial'));
   document.getElementById('nav-historial-cliente').addEventListener('click',()=>showTab('historial-cliente'));
   document.getElementById('nav-socios').addEventListener('click',()=>showTab('socios'));
