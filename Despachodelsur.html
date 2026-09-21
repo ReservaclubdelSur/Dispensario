@@ -2697,8 +2697,9 @@ function renderPeriodos(){
   lista.innerHTML = [...periodos].reverse().map(p=>{
     const wks = getWeeksDePeriodo(p);
     const esActual = p.id === periodoActual;
-    const totalIngresos = wks.reduce((acc,wk)=>acc+wk.rows.reduce((a,r)=>a+rowTotal(r),0),0);
-    const totalClientes = wks.reduce((acc,wk)=>acc+wk.rows.length,0);
+    // Una semana sin pedidos llega de la nube sin "rows": sin este resguardo, la pestaña se rompía
+    const totalIngresos = wks.reduce((acc,wk)=>acc+(wk.rows||[]).reduce((a,r)=>a+(r?rowTotal(r):0),0),0);
+    const totalClientes = wks.reduce((acc,wk)=>acc+(wk.rows||[]).length,0);
     return `<div style="padding:16px 20px;border-bottom:1px solid var(--border);${esActual?'background:#f0f8ff;border-left:3px solid var(--primary);':''}">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
         <div style="font-weight:700;font-size:15px">${esc(p.nombre)}</div>
@@ -4270,9 +4271,26 @@ function exportCSV(){
 document.addEventListener('DOMContentLoaded',()=>{
   // Sincronizar desde Firebase primero, luego iniciar la app
   syncFromFirebase(()=>{
-  // Recargar datos que pueden haber llegado de la nube
+  // Recargar TODO lo que pudo llegar de la nube. Antes solo se releían los precios por comuna
+  // y las semanas: el resto (períodos, productos, clientes, recetas, stock…) quedaba con lo que
+  // este dispositivo tenía antes de sincronizar, o vacío si era la primera vez que se abría.
   comunaPrecios=lsGet('dds_comuna_precios',comunaPrecios||{});
   weeks=lsGet('dds_weeks',weeks||[]);
+  products=lsGet('dds_prods',products||[]);
+  clientesDB=lsGet('dds_clientes',clientesDB||[]);
+  periodos=lsGet('dds_periodos',periodos||[]);
+  periodoActual=lsGet('dds_periodo_actual',periodoActual||'');
+  recetasDB=lsGet('dds_recetas',recetasDB||[]);
+  stockDB=lsGet('dds_stock',stockDB||[]);
+  sociosDB=lsGet('dds_socios',sociosDB||[]);
+  plantillas=lsGet('dds_plantillas',null)||plantillas;
+  despPrice=lsGet('dds_desp',despPrice||5000);
+  repartidorTel=lsGet('dds_rep',repartidorTel||'');
+  const _cur=lsGet('dds_cur',curId);
+  if(_cur && (weeks||[]).some(w=>w&&w.id===_cur)) curId=_cur;
+  // Firebase no guarda listas vacías: una semana sin pedidos vuelve sin "rows"
+  weeks=(weeks||[]).filter(Boolean);
+  weeks.forEach(w=>{ if(!Array.isArray(w.rows)) w.rows=[]; else w.rows=w.rows.filter(Boolean); });
   // Blindar historial: congela el delivery de pedidos que aún no lo tengan (protege el pasado de cambios de tarifa)
   blindarDeliveryHistorico();
   // Nav
