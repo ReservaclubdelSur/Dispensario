@@ -2505,9 +2505,12 @@ function renderStock(){
 }
 
 function nuevoRegistroStock(){
-  const pidActual = (getPeriodoActual()||{}).id;
+  // El registro va al período que se está mirando (por defecto el actual), NO al que diga la fecha:
+  // si el período nuevo empieza el 24-09 y hoy es 21-09, por fecha caería en el anterior.
+  const pidDestino = periodoStockVista();
+  const nombreDestino = (periodos.find(p=>p.id===pidDestino)||{}).nombre||'';
   // Si el período todavía no tiene registros, partir de lo último que se contó antes
-  const actual = stockDelPeriodo(pidActual).length ? stockActual(pidActual)
+  const actual = stockDelPeriodo(pidDestino).length ? stockActual(pidDestino)
     : stockActual(periodoDeRegistro(stockDB[stockDB.length-1]||{}));
   const items = products.map(p=>{
     const g = actual[p.id]?.gramos||0;
@@ -2518,7 +2521,8 @@ function nuevoRegistroStock(){
       +'<input type="number" id="sc_'+p.id+'" value="'+c+'" min="0" placeholder="conos" style="border:1px solid var(--border2);border-radius:var(--radius);padding:5px 8px;font-family:inherit;font-size:13px;outline:none;text-align:center">'
       +'</div>';
   }).join('');
-  const html='<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;margin-bottom:8px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase"><div>Cepa</div><div style="text-align:center">Gramos</div><div style="text-align:center">Conos</div></div>'
+  const html='<div style="background:var(--primary-light);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;font-size:13px">📦 Se guarda en: <strong>'+esc(nombreDestino)+'</strong></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;margin-bottom:8px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase"><div>Cepa</div><div style="text-align:center">Gramos</div><div style="text-align:center">Conos</div></div>'
     +items
     +'<div style="margin-top:10px">'
     +'<input type="text" id="stockFecha" value="'+today()+'" placeholder="Fecha DD-MM-YYYY" style="width:100%;border:1px solid var(--border2);border-radius:var(--radius);padding:7px 10px;font-family:inherit;font-size:13px;outline:none;margin-bottom:6px">'
@@ -2533,7 +2537,7 @@ function nuevoRegistroStock(){
       conos:parseInt(document.getElementById('sc_'+p.id)?.value)||0
     }));
     const reg={id:'stk_'+Date.now(),fecha:new Date().toISOString(),label:fecha,nota,items:its,
-      periodoId: periodoDeFecha(fecha) || (getPeriodoActual()||{}).id || ''};
+      periodoId: pidDestino || (getPeriodoActual()||{}).id || ''};
     stockDB.push(reg);
     stockPeriodoVista = reg.periodoId; // mostrar el período donde acaba de quedar
     saveAll();
