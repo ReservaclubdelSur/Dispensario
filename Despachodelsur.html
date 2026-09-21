@@ -2635,33 +2635,40 @@ function eliminarPeriodo(pid){
     'Eliminar todo'
   );
 }
+// Reparte TODAS las semanas entre TODOS los períodos según la fecha de inicio de cada uno.
+// Antes tomaba periodos[0] y periodos[1] a ciegas: con 3 períodos le asignaba las semanas
+// al que estuviera segundo en la lista, que no siempre es el Período 2.
 function reorganizarPeriodos(){
   if(periodos.length<2){toast('⚠️ Necesitas al menos 2 períodos');return;}
   const html=`
-    <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Ingresa la fecha de corte para reasignar las semanas:</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div>
-        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px">Período 1 — hasta:</div>
-        <input type="text" id="reorgP1" value="14-05-2026" placeholder="DD-MM-YYYY" style="width:100%;border:1px solid var(--border2);border-radius:var(--radius);padding:7px 10px;font-family:inherit;font-size:13px;outline:none;text-align:center;font-weight:600">
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px">Período 2 — desde:</div>
-        <input type="text" id="reorgP2" value="21-05-2026" placeholder="DD-MM-YYYY" style="width:100%;border:1px solid var(--border2);border-radius:var(--radius);padding:7px 10px;font-family:inherit;font-size:13px;outline:none;text-align:center;font-weight:600">
-      </div>
-    </div>`;
+    <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Cada semana se va al período que le corresponde según estas fechas de inicio. Corrígelas si alguna está mal:</p>
+    `+periodos.map((p,i)=>
+      '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">'
+      +'<span style="flex:1;font-weight:600;font-size:13px">'+esc(p.nombre)+'</span>'
+      +'<span style="font-size:11px;color:var(--muted)">desde</span>'
+      +'<input type="text" id="reorgDesde'+i+'" value="'+esc(p.desde||'')+'" placeholder="DD-MM-AAAA" style="width:120px;border:1px solid var(--border2);border-radius:var(--radius);padding:6px 8px;font-family:inherit;font-size:13px;outline:none;text-align:center;font-weight:600">'
+      +'</div>').join('');
   showModal('Reorganizar semanas por período','',()=>{
-    const hastaP1=document.getElementById('reorgP1')?.value.trim()||'14-05-2026';
-    const desdeP2=document.getElementById('reorgP2')?.value.trim()||'21-05-2026';
     function toComp(s){const p=(s||'').split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:s;}
-    const limP1=toComp(hastaP1), limP2=toComp(desdeP2);
-    const p1=periodos[0], p2=periodos[1];
-    p1.weeks=weeks.filter(w=>toComp(w.label)<=limP1).map(w=>w.id);
-    p2.weeks=weeks.filter(w=>toComp(w.label)>=limP2).map(w=>w.id);
-    p1.desde=weeks.filter(w=>toComp(w.label)<=limP1).slice(-1)[0]?.label||'';
-    p1.hasta=hastaP1;
-    p2.desde=desdeP2;
+    const lista=periodos.map((p,i)=>({p, desde:(document.getElementById('reorgDesde'+i)?.value.trim()||p.desde||'')}));
+    if(lista.some(x=>!fechaRecetaValida(x.desde))){ toast('⚠️ Hay una fecha inválida — usa DD-MM-AAAA'); return; }
+    lista.sort((a,b)=>toComp(a.desde)<toComp(b.desde)?-1:1);
+    lista.forEach(x=>{ x.p.desde=x.desde; x.p.weeks=[]; });
+    // cada semana va al último período cuyo inicio es anterior o igual a la semana
+    weeks.forEach(w=>{
+      const c=toComp(w.label);
+      let destino=lista[0];
+      lista.forEach(x=>{ if(toComp(x.desde)<=c) destino=x; });
+      destino.p.weeks.push(w.id);
+    });
+    // la fecha de cierre de cada período es su semana más reciente; el último queda abierto
+    lista.forEach((x,i)=>{
+      const suyas=weeks.filter(w=>x.p.weeks.includes(w.id)).map(w=>w.label).sort((a,b)=>toComp(a)<toComp(b)?-1:1);
+      x.p.hasta = (i===lista.length-1) ? '' : (suyas[suyas.length-1]||'');
+    });
+    periodos=lista.map(x=>x.p);
     saveAll();renderPeriodos();
-    toast('✅ Semanas reorganizadas — P1: '+p1.weeks.length+' semanas, P2: '+p2.weeks.length+' semanas');
+    toast('✅ '+lista.map(x=>x.p.nombre+': '+x.p.weeks.length).join(' · '),5000);
   },'Reorganizar',html);
 }
 function eliminarPeriodo(pid){
