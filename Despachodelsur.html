@@ -53,10 +53,11 @@ function syncFromFirebase(callback, intentos){
   if(!db) initFirebase();
   if(!db){
     if(intentos < 30){ setTimeout(()=>syncFromFirebase(callback, intentos+1), 300); return; }
-    window._sinNube = true;
+    window._sinNube = true; window._syncOk = false;
     callback(); return;
   }
   db.ref(DB_PATH).once('value').then(snap=>{
+    window._syncOk = true; // la bajada inicial funcionó: recién ahora es seguro subir
     const nube = snap.val();
     if(nube){
       const leer = k => { try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch{ return null; } };
@@ -91,7 +92,7 @@ function syncFromFirebase(callback, intentos){
       });
     }
     callback();
-  }).catch(()=>callback());
+  }).catch(()=>{ window._sinNube = true; window._syncOk = false; callback(); });
 }
 </script>
 <style>
@@ -993,13 +994,27 @@ function saveAll(){
   Object.entries(data).forEach(([k,v])=>lsSet(k,v));
   // Guardar en Firebase con debounce 1.5s (si está disponible)
   if(!db && typeof initFirebase==='function') initFirebase();
-  if(db){
+  // Si la app arrancó sin bajar los datos de la nube, NO subir: lo local puede estar viejo y
+  // pisaría los datos de todos (el 20-09-2026 se perdieron 17 semanas así).
+  if(db && window._syncOk){
     clearTimeout(window._fbSaveTimer);
     window._fbSaveTimer=setTimeout(()=>{
       const limpio=JSON.parse(JSON.stringify(data));
       db.ref(DB_PATH).update(limpio).catch(e=>console.warn('FB save:',e));
     },1500);
+  } else {
+    avisarSinNube();
   }
+}
+
+// Aviso fijo cuando se trabaja sin nube: los cambios quedan solo en este dispositivo.
+function avisarSinNube(){
+  if(!document.body || document.getElementById('avisoSinNube')) return;
+  const b=document.createElement('div');
+  b.id='avisoSinNube';
+  b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:#991b1b;color:#fff;padding:9px 14px;font-size:13px;font-weight:600;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)';
+  b.innerHTML='⚠️ Sin conexión con la nube: lo que cambies queda <u>solo en este dispositivo</u> y no se guarda para los demás. Revisa tu internet y recarga la página.';
+  document.body.appendChild(b);
 }
 
 
