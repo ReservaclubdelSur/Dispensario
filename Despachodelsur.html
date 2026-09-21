@@ -68,8 +68,10 @@ function syncFromFirebase(callback, intentos){
         if(vLocal===null || vLocal===undefined){ guardar(k, vNube); return; }
         // Semanas: unir por fecha, conservando la versión con más pedidos
         if(k==='dds_weeks' && Array.isArray(vNube) && Array.isArray(vLocal)){
+          // Si empatan en cantidad de pedidos gana la NUBE: antes ganaba el dispositivo, y uno con
+          // datos viejos pisaba los cambios de los demás (por ejemplo, los precios guardados).
           const porLabel = {};
-          [...vNube, ...vLocal].filter(Boolean).forEach(w=>{
+          [...vLocal, ...vNube].filter(Boolean).forEach(w=>{
             const rows=(w.rows||[]).length;
             if(!porLabel[w.label] || rows >= (porLabel[w.label].rows||[]).length) porLabel[w.label]=w;
           });
@@ -989,6 +991,14 @@ function bajarTodoNube(){
 }
 
 function saveAll(){
+  // Guardar en cada pedido del período actual el precio de hoy de lo que lleva (si aún no lo tiene).
+  // Solo el período actual: el historial ya tiene sus precios y no debe tomar los de hoy.
+  try{
+    getWeeksDePeriodo(getPeriodoActual()||{}).forEach(w=>(w.rows||[]).forEach(r=>{
+      if(!r) return;
+      products.forEach(p=>{ if(((r.qtys||{})[p.id]||0)>0 && !(r.precios&&r.precios[p.id]!=null)){ r.precios=r.precios||{}; r.precios[p.id]=p.price; } });
+    }));
+  }catch(e){}
   const data={
     dds_prods:products,dds_weeks:weeks,dds_cur:curId,dds_desp:despPrice,dds_comuna_precios:comunaPrecios,
     dds_clientes:clientesDB,dds_rep:repartidorTel,dds_periodos:periodos,
@@ -1126,8 +1136,11 @@ function despDeFila(r){
   if(r.despMonto!=null) return r.despMonto;
   return despPrice;
 }
-function rowTotal(r){let s=despDeFila(r);products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
-function rowSinDesp(r){let s=0;products.forEach(p=>s+=(r.qtys[p.id]||0)*p.price);return s}
+// Precio de un producto EN ESE PEDIDO: el que quedó guardado al cargarlo. Así, cambiar un precio
+// en Productos no reescribe el historial (Subzerdo pasó de $6.000 a $4.000 y bajaba el Período 2).
+function precioFila(r,p){ return (r&&r.precios&&r.precios[p.id]!=null) ? r.precios[p.id] : p.price; }
+function rowSinDesp(r){let s=0;products.forEach(p=>s+=((r.qtys||{})[p.id]||0)*precioFila(r,p));return s}
+function rowTotal(r){return despDeFila(r)+rowSinDesp(r)}
 function normalizeNombre(n){return(n||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ')}
 function toast(msg,dur=2400){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
 
@@ -1309,7 +1322,7 @@ function renderRows(){
         <div class="prods-section"><div class="prods-section-title">Productos pedidos</div><div class="prods-grid">
           ${products.filter(p=>!p.oculto||(row.qtys[p.id]||0)>0).map(p=>`<div class="prod-cell"><label>${p.emoji||''}<br>${esc(p.name)}${p.oculto?' <span style="color:var(--hint);font-size:9px">(oculta)</span>':''}</label>
             <input type="number" value="${row.qtys[p.id]||''}" placeholder="0" min="0" step="any" oninput="setQty('${row.id}','${p.id}',this.value)" onclick="event.stopPropagation()">
-            <span class="sub">${fmt(p.price)}/u</span></div>`).join('')}
+            <span class="sub">${fmt(precioFila(row,p))}/u</span></div>`).join('')}
         </div></div>
         <div class="expand-foot">
           <div class="expand-badges">
@@ -3318,7 +3331,7 @@ let tplActiva='confirmacion';
 let waPreviewRow=null;
 
 function applyTpl(tpl,row){
-  const lineas=products.filter(p=>(row.qtys[p.id]||0)>0).map(p=>'  • '+row.qtys[p.id]+' '+p.name+' → '+fmt((row.qtys[p.id]||0)*p.price));
+  const lineas=products.filter(p=>(row.qtys[p.id]||0)>0).map(p=>'  • '+row.qtys[p.id]+' '+p.name+' → '+fmt((row.qtys[p.id]||0)*precioFila(row,p)));
   const vars={
     nombre: row.nombre||'Cliente',
     productos: lineas.join('\n')||'(sin productos)',

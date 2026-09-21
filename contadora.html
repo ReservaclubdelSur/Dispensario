@@ -326,7 +326,8 @@ function renderRecetas(){
     +'<div class="card"><div class="card-h">🩺 Recetas ('+recetas.length+')</div>'+filas+'</div>';
 }
 
-function rowSinDesp(r){ let s=0; productos.forEach(p=>s+=(r.qtys?.[p.id]||0)*(p.price||0)); return s; }
+// Usa el precio guardado en el pedido; si no tiene, el de hoy (igual que el panel)
+function rowSinDesp(r){ let s=0; productos.forEach(p=>s+=(r.qtys?.[p.id]||0)*(r.precios?.[p.id]!=null ? r.precios[p.id] : (p.price||0))); return s; }
 function despDeFila(r, despBase){
   if(!r.hasDesp) return 0;
   if(r.despMonto!=null) return r.despMonto;
