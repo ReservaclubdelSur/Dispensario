@@ -76,10 +76,13 @@ function syncFromFirebase(callback, intentos){
           guardar(k, Object.values(porLabel));
           return;
         }
-        // Arrays con id (clientes, recetas, stock, socios, periodos): unir por id
+        // Arrays con id (clientes, recetas, stock, socios, periodos): unir por id.
+        // En los períodos manda la nube: si este dispositivo tiene una lista vieja, antes se la
+        // imponía a todos (así el Período 3 se quedó con las semanas del 2 el 20-09-2026).
         if(Array.isArray(vNube) && Array.isArray(vLocal)){
+          const orden = (k==='dds_periodos') ? [...vLocal, ...vNube] : [...vNube, ...vLocal];
           const porId = {};
-          [...vNube, ...vLocal].filter(Boolean).forEach(x=>{ const key=x.id||x.nombre||JSON.stringify(x); porId[key]=x; });
+          orden.filter(Boolean).forEach(x=>{ const key=x.id||x.nombre||JSON.stringify(x); porId[key]=x; });
           guardar(k, Object.values(porId));
           return;
         }
