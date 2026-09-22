@@ -3142,7 +3142,7 @@ function renderRecetas() {
         <td style="font-size:12px">${r.vencimientoTexto||''}</td>
         <td>${recetaEstadoBadge(e,f)}</td>
         <td>${btnWa}</td>
-        <td><button class="btn" style="padding:4px 8px;font-size:11px" title="Quitar de la lista" onclick="eliminarReceta('${r.id}')">🗑</button></td>
+        <td style="white-space:nowrap"><button class="btn" style="padding:4px 8px;font-size:11px" title="Editar o renovar" onclick="editarReceta('${r.id}')">✏️</button> <button class="btn" style="padding:4px 8px;font-size:11px" title="Quitar de la lista" onclick="eliminarReceta('${r.id}')">🗑</button></td>
       </tr>`;
     }).join('')}</tbody>
   </table></div>`;
@@ -3273,7 +3273,14 @@ function eliminarReceta(id){
   },'Quitar');
 }
 
-function nuevaReceta(pre){
+// Editar = el mismo formulario, precargado, que actualiza la receta existente (mismo id y número)
+// en vez de crear otra: así una renovación no deja la receta vieja vencida duplicada.
+function editarReceta(id){
+  const r=recetasDB.find(x=>x.id===id);
+  if(r) nuevaReceta({...r}, id);
+}
+
+function nuevaReceta(pre, editId){
   pre = pre||{};
   const inp=(id,ph,val)=>'<input type="text" id="'+id+'" value="'+esc(val||'')+'" placeholder="'+ph+'" style="width:100%;border:1px solid var(--border2);border-radius:var(--radius);padding:7px 10px;font-family:inherit;font-size:13px;outline:none">';
   const campo=(lab,html)=>'<div style="margin-bottom:8px"><label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:3px">'+lab+'</label>'+html+'</div>';
@@ -3288,7 +3295,7 @@ function nuevaReceta(pre){
       +campo('Vence el',inp('recVenc','DD-MM-AAAA',pre.vencimiento))
     +'</div>'
     +'<div style="font-size:11px;color:var(--muted)">💡 El aviso por WhatsApp toma el teléfono de la base de clientes, así que el nombre tiene que escribirse igual que allá.</div>';
-  showModal('Nueva persona en recetas','',()=>{
+  showModal(editId?'Editar receta':'Nueva persona en recetas','',()=>{
     const v={
       nombre:(document.getElementById('recNombre')?.value||'').trim(),
       rut:(document.getElementById('recRut')?.value||'').trim(),
@@ -3297,9 +3304,19 @@ function nuevaReceta(pre){
       sacada:(document.getElementById('recSacada')?.value||'').trim(),
       vencimiento:(document.getElementById('recVenc')?.value||'').trim()
     };
-    if(!v.nombre){ toast('⚠️ Falta el nombre'); setTimeout(()=>nuevaReceta(v),150); return; }
-    if(v.sacada && !fechaRecetaValida(v.sacada)){ toast('⚠️ "Receta sacada" inválida — usa DD-MM-AAAA'); setTimeout(()=>nuevaReceta(v),150); return; }
-    if(v.vencimiento && !fechaRecetaValida(v.vencimiento)){ toast('⚠️ "Vence el" inválida — usa DD-MM-AAAA'); setTimeout(()=>nuevaReceta(v),150); return; }
+    if(!v.nombre){ toast('⚠️ Falta el nombre'); setTimeout(()=>nuevaReceta(v,editId),150); return; }
+    if(v.sacada && !fechaRecetaValida(v.sacada)){ toast('⚠️ "Receta sacada" inválida — usa DD-MM-AAAA'); setTimeout(()=>nuevaReceta(v,editId),150); return; }
+    if(v.vencimiento && !fechaRecetaValida(v.vencimiento)){ toast('⚠️ "Vence el" inválida — usa DD-MM-AAAA'); setTimeout(()=>nuevaReceta(v,editId),150); return; }
+    if(editId){
+      const r=recetasDB.find(x=>x.id===editId);
+      if(r){
+        Object.assign(r,{rut:v.rut, nombre:v.nombre, duracion:v.duracion, gMes:v.gMes, sacada:v.sacada,
+          vencimiento:v.vencimiento, vencimientoTexto:v.vencimiento});
+        saveAll(); updateRecetasBadge(); renderRecetas();
+        toast('✅ Receta de '+v.nombre+' actualizada');
+      }
+      return;
+    }
     const dup=recetasDB.some(r=>nombreNorm(r.nombre)===nombreNorm(v.nombre));
     recetasDB.push({
       id:'rec_'+Date.now(),
