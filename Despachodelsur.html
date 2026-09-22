@@ -669,7 +669,7 @@ td.right{text-align:right;font-weight:600}
             <div id="recetasAlertaBanner"></div>
             <div style="padding:10px 18px;border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
               <input type="text" id="recetasSearch" placeholder="🔍 Buscar por nombre o RUT..." style="flex:1;min-width:180px;border:1px solid var(--border2);border-radius:var(--radius);padding:7px 12px;font-family:inherit;font-size:13px;outline:none">
-              <select id="recetasFiltro" style="font-size:12px;padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);font-family:inherit;outline:none">
+              <select id="recetasFiltro" style="display:none;font-size:12px;padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);font-family:inherit;outline:none">
                 <option value="">Todas</option>
                 <option value="vencida">🔴 Vencidas</option>
                 <option value="urgente">🟠 Vence en 60 días</option>
@@ -3073,77 +3073,81 @@ function recetaAlertaInline(nombre) {
   if (e === 'vencida') return `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius);padding:5px 10px;font-size:11px;font-weight:600;color:#991b1b;margin-top:4px">🔴 Receta vencida — no dispensar</div>`;
   return `<div style="background:#fff8e1;border:1px solid #fde68a;border-radius:var(--radius);padding:5px 10px;font-size:11px;font-weight:600;color:#92400e;margin-top:4px">🟠 Receta vence en ${diff} días (${r.vencimientoTexto})</div>`;
 }
+// Vista de recetas: contadores arriba (filtran al tocarlos) + tabla compacta de 4 columnas
+// con los botones siempre visibles. Antes eran 10 columnas y había que correr la pantalla.
 function renderRecetas() {
   const q = (document.getElementById('recetasSearch')||{value:''}).value.toLowerCase();
-  const filtro = (document.getElementById('recetasFiltro')||{value:''}).value;
+  const selFiltro = document.getElementById('recetasFiltro');
+  const filtro = (selFiltro||{value:''}).value;
   const list = document.getElementById('recetasList'); if (!list) return;
+  const banner = document.getElementById('recetasAlertaBanner');
 
   if (!recetasDB.length) {
     list.innerHTML = '<div class="empty">Sin recetas — agrega una con ➕ Nueva persona, o importa tu Excel con el botón de arriba</div>';
-    document.getElementById('recetasAlertaBanner').innerHTML = '';
+    if (banner) banner.innerHTML = '';
     return;
   }
 
-  // banner de alertas
-  const alertas = recetasDB.filter(r => {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const datos = recetasDB.map(r => {
     const f = parseExcelFecha(r.vencimiento);
-    return recetaEstado(f) === 'vencida' || recetaEstado(f) === 'urgente';
+    return { r, f, e: recetaEstado(f), dias: f ? Math.round((f - hoy)/86400000) : null };
   });
-  const vencidas = alertas.filter(r => recetaEstado(parseExcelFecha(r.vencimiento)) === 'vencida');
-  const urgentes = alertas.filter(r => recetaEstado(parseExcelFecha(r.vencimiento)) === 'urgente');
-  const banner = document.getElementById('recetasAlertaBanner');
-  if (alertas.length) {
-    banner.innerHTML = `<div style="background:#fff8e1;border-bottom:1px solid #fde68a;padding:12px 18px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:14px">⚠️</span>
-      <div style="flex:1;font-size:12px">
-        ${vencidas.length ? `<strong style="color:#991b1b">${vencidas.length} receta${vencidas.length>1?'s':''} vencida${vencidas.length>1?'s':''}</strong> — no pueden dispensarse. ` : ''}
-        ${urgentes.length ? `<strong style="color:#92400e">${urgentes.length} receta${urgentes.length>1?'s':''} vence${urgentes.length>1?'n':''} en menos de 30 días.</strong>` : ''}
-      </div>
-      <button class="btn btn-warn" style="font-size:11px" onclick="document.getElementById('recetasFiltro').value='vencida';renderRecetas()">Ver vencidas</button>
-      <button class="btn btn-warn" style="font-size:11px" onclick="document.getElementById('recetasFiltro').value='urgente';renderRecetas()">Ver urgentes</button>
-    </div>`;
-  } else { banner.innerHTML = `<div style="background:#f0fdf4;border-bottom:1px solid #bbf7d0;padding:10px 18px;font-size:12px;color:#166534;font-weight:500">✅ Todas las recetas están vigentes</div>`; }
+  const cuenta = k => datos.filter(x => x.e === k).length;
 
-  // filtrar
-  let filtered = recetasDB.filter(r => {
-    const f = parseExcelFecha(r.vencimiento);
-    const e = recetaEstado(f);
-    const matchQ = !q || (r.nombre||'').toLowerCase().includes(q) || (r.rut||'').includes(q);
-    const matchF = !filtro || e === filtro;
-    return matchQ && matchF;
-  });
+  // ── contadores (semáforo) ──
+  const tarjeta = (k, titulo, n, fondo, color) => {
+    const activo = filtro === k;
+    return `<div onclick="(function(s){s.value=s.value==='${k}'?'':'${k}';renderRecetas();})(document.getElementById('recetasFiltro'))"
+      style="flex:1;min-width:120px;cursor:pointer;background:${fondo};border-radius:var(--radius);padding:10px 14px;border:2px solid ${activo?color:'transparent'}">
+      <div style="font-size:12px;color:${color};font-weight:600">${titulo}</div>
+      <div style="font-size:24px;font-weight:700;color:${color};line-height:1.2">${n}</div></div>`;
+  };
+  if (banner) banner.innerHTML = `<div style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--border)">
+      ${tarjeta('vencida','Vencidas',cuenta('vencida'),'var(--red-bg)','var(--red)')}
+      ${tarjeta('urgente','Vencen en 60 días',cuenta('urgente'),'var(--amber-bg)','var(--amber)')}
+      ${tarjeta('vigente','Vigentes',cuenta('vigente'),'var(--green-bg)','var(--green)')}
+      ${cuenta('sin-fecha') ? tarjeta('sin-fecha','Sin fecha',cuenta('sin-fecha'),'var(--surface2)','var(--muted)') : ''}
+    </div>
+    ${filtro ? '<div style="padding:6px 18px;font-size:11px;color:var(--muted)">Mostrando solo un grupo — toca el mismo contador para ver todas</div>' : ''}`;
 
-  // ordenar: vencidas primero, luego urgentes, luego vigentes
+  // ── filtrar y ordenar: vencidas (la más reciente primero), luego por vencer y vigentes (la más próxima primero) ──
   const orden = {vencida:0, urgente:1, vigente:2, 'sin-fecha':3};
-  filtered.sort((a,b) => orden[recetaEstado(parseExcelFecha(a.vencimiento))] - orden[recetaEstado(parseExcelFecha(b.vencimiento))]);
+  const filtrados = datos.filter(x =>
+    (!q || (x.r.nombre||'').toLowerCase().includes(q) || (x.r.rut||'').toLowerCase().includes(q)) && (!filtro || x.e === filtro)
+  ).sort((a,b) => orden[a.e]-orden[b.e] || (a.e==='vencida' ? (b.dias-a.dias) : ((a.dias??1e9)-(b.dias??1e9))));
 
-  if (!filtered.length) { list.innerHTML = '<div class="empty">Sin resultados</div>'; return; }
+  if (!filtrados.length) { list.innerHTML = '<div class="empty">Sin resultados</div>'; return; }
 
-  list.innerHTML = `<div class="tbl-wrap"><table>
-    <thead><tr>
-      <th>#</th><th>RUT</th><th>Nombre</th><th>Duración</th><th>Gramos/mes</th><th>Sacada</th><th>Vencimiento</th><th>Estado</th><th>Avisar</th><th></th>
-    </tr></thead>
-    <tbody>${filtered.map((r,i) => {
-      const f = parseExcelFecha(r.vencimiento);
-      const e = recetaEstado(f);
-      const rowBg = e==='vencida'?'background:#fff5f5':e==='urgente'?'background:#fffbeb':'';
+  const colorBorde = {vencida:'var(--red)', urgente:'#f59e0b', vigente:'var(--green)', 'sin-fecha':'var(--border2)'};
+  const pastilla = x => {
+    if (x.e==='vencida') return `<span style="background:var(--red-bg);color:var(--red);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;white-space:nowrap">vencida hace ${-x.dias} d</span>`;
+    if (x.e==='urgente') return `<span style="background:var(--amber-bg);color:var(--amber);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;white-space:nowrap">en ${x.dias} días</span>`;
+    if (x.e==='vigente') return `<span style="background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;white-space:nowrap">vigente</span>`;
+    return `<span style="color:var(--muted);font-size:11px">sin fecha</span>`;
+  };
+  const icono = 'display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);cursor:pointer;font-size:14px;text-decoration:none';
+
+  list.innerHTML = `<div class="tbl-wrap"><table style="table-layout:fixed;width:100%;min-width:520px">
+    <colgroup><col style="width:38%"><col style="width:30%"><col style="width:14%"><col style="width:18%"></colgroup>
+    <thead><tr><th>Socio</th><th>Vence</th><th>G/mes</th><th></th></tr></thead>
+    <tbody>${filtrados.map(x => {
+      const r = x.r;
       const tel = (clientesDB.find(c=>nombreNorm(c.nombre)===nombreNorm(r.nombre))?.telefono||'').replace(/\D/g,'');
-      const fmtF = f ? f.toLocaleDateString('es-CL',{day:'2-digit',month:'long',year:'numeric'}) : '';
-      const msg = tel?encodeURIComponent('Hola '+r.nombre+' 🌿, te avisamos que tu receta médica vence el '+fmtF+'. Para seguir con tus dispensaciones necesitas renovarla antes de esa fecha. ¡Cualquier consulta escríbenos!'):'';
-      const btnWa = (tel&&(e==='urgente'||e==='vencida'))
-        ? '<a class="btn btn-wa" style="padding:4px 8px;font-size:11px" href="https://wa.me/56'+tel+'?text='+msg+'" target="_blank">📱 Avisar</a>'
-        : '<span style="color:var(--hint);font-size:11px">'+(tel?'—':'Sin tel.')+'</span>';
-      return `<tr style="${rowBg}">
-        <td style="color:var(--muted)">${/^\d+$/.test(String(r.num))?r.num:i+1}</td>
-        <td style="font-family:monospace;font-size:11px">${esc(r.rut||'')}</td>
-        <td style="font-weight:600">${esc(r.nombre||'')}</td>
-        <td>${esc(r.duracion||'')}</td>
-        <td>${esc(r.gMes||'')}</td>
-        <td style="font-size:12px;color:var(--muted)">${esc(r.sacada||'')}</td>
-        <td style="font-size:12px">${r.vencimientoTexto||''}</td>
-        <td>${recetaEstadoBadge(e,f)}</td>
-        <td>${btnWa}</td>
-        <td style="white-space:nowrap"><button class="btn" style="padding:4px 8px;font-size:11px" title="Editar o renovar" onclick="editarReceta('${r.id}')">✏️</button> <button class="btn" style="padding:4px 8px;font-size:11px" title="Quitar de la lista" onclick="eliminarReceta('${r.id}')">🗑</button></td>
+      const fmtF = x.f ? x.f.toLocaleDateString('es-CL',{day:'2-digit',month:'long',year:'numeric'}) : '';
+      const msg = encodeURIComponent('Hola '+r.nombre+' 🌿, te avisamos que tu receta médica vence el '+fmtF+'. Para seguir con tus dispensaciones necesitas renovarla antes de esa fecha. ¡Cualquier consulta escríbenos!');
+      const wa = (tel && (x.e==='urgente'||x.e==='vencida'))
+        ? `<a style="${icono}" title="Avisar por WhatsApp" href="https://wa.me/56${tel}?text=${msg}" target="_blank">📱</a>` : '';
+      const detalle = [r.sacada?('sacada '+esc(r.sacada)):'', esc(r.duracion||'')].filter(Boolean).join(' · ');
+      return `<tr>
+        <td style="border-left:4px solid ${colorBorde[x.e]};overflow:hidden;text-overflow:ellipsis"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.nombre||'')}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:monospace">${esc(r.rut||'')}</div></td>
+        <td><div style="font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${esc(r.vencimientoTexto||r.vencimiento||'—')} ${pastilla(x)}</div>
+          ${detalle?`<div style="font-size:11px;color:var(--muted)">${detalle}</div>`:''}</td>
+        <td style="font-size:13px">${esc(r.gMes||'')}</td>
+        <td style="text-align:right;white-space:nowrap">${wa}
+          <button style="${icono}" title="Editar o renovar" onclick="editarReceta('${r.id}')">✏️</button>
+          <button style="${icono}" title="Quitar de la lista" onclick="eliminarReceta('${r.id}')">🗑</button></td>
       </tr>`;
     }).join('')}</tbody>
   </table></div>`;
