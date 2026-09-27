@@ -113,7 +113,7 @@ header p{font-size:12px;opacity:.75;margin-top:2px}
 <script>
 const DB_PATH='dispensario';
 const WA_CLUB='56998150926'; // WhatsApp del club para renovaciones
-let productos=[], recetas=[], precioDelivery=5000, comunaPrecios={};
+let productos=[], precioDelivery=5000, comunaPrecios={};
 const COMUNAS_STGO=["Cerrillos","Cerro Navia","Conchalí","El Bosque","Estación Central","Huechuraba","Independencia","La Cisterna","La Florida","La Granja","La Pintana","La Reina","Las Condes","Lo Barnechea","Lo Espejo","Lo Prado","Macul","Maipú","Ñuñoa","Padre Hurtado","Pedro Aguirre Cerda","Peñalolén","Pirque","Providencia","Pudahuel","Quilicura","Quinta Normal","Recoleta","Renca","San Joaquín","San José de Maipo","San Miguel","San Ramón","Santiago","Vitacura","Puente Alto","San Bernardo"];
 let qtys={}, conDelivery=true, socio=null;
 
@@ -143,17 +143,17 @@ function estadoReceta(fecha){
 
 let topeDisp={}; // gramos que quedan por cepa con tope
 
+// Esta página es pública: pide SOLO los nodos que necesita, nunca la base completa.
+// Fuera quedan semanas, clientes, stock, períodos, socios y la lista de recetas.
 function cargar(){
   if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo conectar. Revisa tu internet y recarga la página.</div></div>'; return; }
-  db.ref(DB_PATH).once('value').then(snap=>{
-    const d=snap.val()||{};
-    productos=(d.dds_prods||[]).filter(Boolean);
-    recetas=(d.dds_recetas||[]).filter(Boolean);
-    precioDelivery=d.dds_desp||5000;
-    comunaPrecios=d.dds_comuna_precios||{};
+  const pedir=n=>db.ref(DB_PATH+'/'+n).once('value').then(s=>s.val());
+  Promise.all([pedir('dds_prods'),pedir('dds_desp'),pedir('dds_comuna_precios'),pedir('dds_pedidos_web')]).then(([prods,desp,comPrecios,web])=>{
+    productos=(prods||[]).filter(Boolean);
+    precioDelivery=desp||5000;
+    comunaPrecios=comPrecios||{};
     // Calcular tope disponible: topeMenu del producto menos lo ya pedido en pedidos web activos
-    const web=d.dds_pedidos_web||{};
-    const pedidosActivos=Object.values(web).filter(Boolean).filter(p=>p.estado!=='descartado');
+    const pedidosActivos=Object.values(web||{}).filter(Boolean).filter(p=>p.estado!=='descartado');
     topeDisp={};
     productos.forEach(p=>{
       if(p.topeMenu!=null){
@@ -265,27 +265,29 @@ let pedidoPendiente=null;
 function irAPago(){
   const rutIn=normRut(document.getElementById('fRut').value);
   const nombreIn=document.getElementById('fNombre').value.trim();
+  const btn=document.getElementById('btnEnviar');
 
-  // Verificar receta
-  let estado='sin-fecha', vence=null, nombreReceta='';
-  if(recetas.length){
-    const r=recetas.find(x=>normRut(x.rut)===rutIn);
-    if(r){
-      vence=parseFecha(r.vencimiento);
+  // Verificar receta: se pregunta SOLO por este RUT (dds_recetas_pub trae nada más la fecha de
+  // vencimiento). Así la página nunca baja la lista de recetas de todos los socios.
+  const txtBtn=btn?btn.textContent:'';
+  if(btn){ btn.disabled=true; btn.textContent='Verificando…'; }
+  const volverBtn=()=>{ if(btn){ btn.disabled=false; btn.textContent=txtBtn; } };
+
+  db.ref(DB_PATH+'/dds_recetas_pub/'+rutIn).once('value').then(snap=>{
+    volverBtn();
+    const val=snap.val();
+    let estado='no-existe', vence=null;
+    if(val){
+      vence=parseFecha(typeof val==='object' ? val.v : val);
       estado=estadoReceta(vence);
-      nombreReceta=r.nombre||'';
-    } else {
-      estado='no-existe';
     }
-  }
-
-  if(estado==='vencida' || estado==='no-existe'){
-    bloqueo(estado, nombreReceta||nombreIn, vence);
-    return;
-  }
-
-  socio={rut:document.getElementById('fRut').value.trim(), estado:estado, vence:vence};
-  pantallaPago();
+    if(estado==='vencida' || estado==='no-existe'){ bloqueo(estado, nombreIn, vence); return; }
+    socio={rut:document.getElementById('fRut').value.trim(), estado:estado, vence:vence};
+    pantallaPago();
+  }).catch(()=>{
+    volverBtn();
+    alert('No pudimos verificar tu receta ahora. Revisa tu internet e intenta de nuevo en un momento.');
+  });
 }
 
 function bloqueo(motivo, nombre, f){

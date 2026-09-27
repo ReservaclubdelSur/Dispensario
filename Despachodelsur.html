@@ -991,6 +991,19 @@ function bajarTodoNube(){
   }).catch(e=>toast('⚠️ Error al bajar: '+e.message,6000));
 }
 
+// Lista mínima para que el menú público pueda revisar una receta sin bajarse todas:
+// solo RUT → fecha de vencimiento. Sin nombres, sin gramos, sin nada más.
+function recetasPublicas(){
+  const out={};
+  (recetasDB||[]).forEach(r=>{
+    if(!r) return;
+    const rut=String(r.rut||'').replace(/[^0-9kK]/g,'').toUpperCase();
+    const ven=String(r.vencimiento||'').trim();
+    if(rut.length>=8 && ven) out[rut]=ven;
+  });
+  return out;
+}
+
 function saveAll(){
   // Guardar en cada pedido del período actual el precio de hoy de lo que lleva (si aún no lo tiene).
   // Solo el período actual: el historial ya tiene sus precios y no debe tomar los de hoy.
@@ -1016,6 +1029,8 @@ function saveAll(){
     window._fbSaveTimer=setTimeout(()=>{
       const limpio=JSON.parse(JSON.stringify(data));
       db.ref(DB_PATH).update(limpio).catch(e=>console.warn('FB save:',e));
+      // Va con set (no update) para que una receta borrada desaparezca también de la lista pública.
+      db.ref(DB_PATH+'/dds_recetas_pub').set(recetasPublicas()).catch(e=>console.warn('FB recetas_pub:',e));
     },1500);
   } else {
     avisarSinNube();
@@ -2682,21 +2697,6 @@ function cerrarPeriodoYEmpezarNuevo(){
   );
 }
 
-function eliminarPeriodo(pid){
-  const p=periodos.find(x=>x.id===pid);if(!p)return;
-  if(p.id===periodoActual){toast('⚠️ No puedes eliminar el período actual');return;}
-  showModal(
-    'Eliminar '+p.nombre,
-    '⚠️ Se eliminarán <strong>'+(p.weeks||[]).length+' semanas</strong> y todos sus pedidos. Esta acción no se puede deshacer.',
-    ()=>{
-      weeks=weeks.filter(w=>!p.weeks.includes(w.id));
-      periodos=periodos.filter(x=>x.id!==pid);
-      periodos.forEach((per,i)=>{ per.nombre='Período '+(i+1); });
-      saveAll();renderPeriodos();toast('✅ Período eliminado y renumerado');
-    },
-    'Eliminar todo'
-  );
-}
 // Reparte TODAS las semanas entre TODOS los períodos según la fecha de inicio de cada uno.
 // Antes tomaba periodos[0] y periodos[1] a ciegas: con 3 períodos le asignaba las semanas
 // al que estuviera segundo en la lista, que no siempre es el Período 2.
