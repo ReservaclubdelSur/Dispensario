@@ -9,6 +9,7 @@
 <title>Contadora — Club del Sur</title>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyB0Q1XEQKatOfGSfhJeB28Ym-8pFdo5sTg",
@@ -86,7 +87,6 @@ select{font-size:13px;padding:8px 10px;border:1px solid var(--border2);border-ra
 
 <script>
 const DB_PATH='dispensario';
-const CLAVE='pagos2026';
 let data={}, productos=[], recetas=[], pedidos=[], weeks=[], periodos=[];
 let tab='pagos';
 
@@ -109,22 +109,60 @@ function estadoReceta(f){
   if(diff<0) return 'vencida'; if(diff<=60) return 'urgente'; return 'vigente';
 }
 
+// ── ACCESO ────────────────────────────────────────────────────────
+// Antes la clave estaba escrita dentro de esta página, a la vista de cualquiera
+// que mirara el código. Ahora entra con correo y contraseña, que viven en
+// Firebase. La sesión queda guardada: se pide una sola vez por dispositivo.
+let yaArranco=false;
+
 function initApp(){
-  if(sessionStorage.getItem('cont_ok')==='1') cargar();
-  else pantallaClave();
+  if(typeof firebase==='undefined' || !firebase.auth){
+    document.getElementById('app').innerHTML='<div class="card"><div class="msg">Sin conexión. Revisa tu internet y vuelve a abrir.</div></div>';
+    return;
+  }
+  firebase.auth().onAuthStateChanged(u=>{
+    if(u){ if(!yaArranco){ yaArranco=true; cargar(); } }
+    else { yaArranco=false; pantallaLogin(); }
+  });
 }
-function pantallaClave(){
+
+function pantallaLogin(aviso){
   document.getElementById('app').innerHTML=
     '<div class="card"><div class="card-h">🔒 Acceso contadora</div>'
-    +'<div class="field"><label>Ingresa la clave</label>'
-    +'<input id="clave" type="password" placeholder="••••••" onkeydown="if(event.key===\'Enter\')entrar()">'
-    +'<button class="btn" style="margin-top:12px" onclick="entrar()">Entrar</button></div></div>';
-  setTimeout(()=>{const e=document.getElementById('clave');if(e)e.focus();},200);
+    +'<div class="field"><label>Correo</label>'
+    +'<input id="mail" type="email" inputmode="email" autocomplete="username" placeholder="tucorreo@gmail.com" onkeydown="if(event.key===\'Enter\')document.getElementById(\'pass\').focus()">'
+    +'<label style="margin-top:14px">Contraseña</label>'
+    +'<input id="pass" type="password" autocomplete="current-password" placeholder="••••••" onkeydown="if(event.key===\'Enter\')entrar()">'
+    +(aviso?'<div style="margin-top:12px;background:#fef2f2;color:#991b1b;border-radius:10px;padding:10px 12px;font-size:13px;text-align:center">'+esc(aviso)+'</div>':'')
+    +'<button class="btn" id="btnEntrar" style="margin-top:12px" onclick="entrar()">Entrar</button></div></div>';
+  setTimeout(()=>{const e=document.getElementById('mail');if(e)e.focus();},200);
 }
+
 function entrar(){
-  const v=(document.getElementById('clave').value||'').trim();
-  if(v===CLAVE){ sessionStorage.setItem('cont_ok','1'); cargar(); }
-  else { const i=document.getElementById('clave'); i.value=''; i.placeholder='Clave incorrecta'; i.style.borderColor='#e74c3c'; }
+  const mail=(document.getElementById('mail').value||'').trim();
+  const pass=document.getElementById('pass').value||'';
+  if(!mail || !pass){ pantallaLogin('Escribe tu correo y tu contraseña.'); return; }
+  const btn=document.getElementById('btnEntrar');
+  btn.disabled=true; btn.textContent='Entrando…';
+  firebase.auth().signInWithEmailAndPassword(mail, pass)
+    .catch(e=>pantallaLogin(mensajeLogin(e)));
+}
+
+function mensajeLogin(e){
+  const c=(e&&e.code)||'';
+  if(c==='auth/wrong-password') return 'Contraseña incorrecta.';
+  if(c==='auth/invalid-credential'||c==='auth/invalid-login-credentials') return 'Correo o contraseña incorrectos.';
+  if(c==='auth/user-not-found') return 'Ese correo no está registrado.';
+  if(c==='auth/invalid-email') return 'Ese correo está mal escrito.';
+  if(c==='auth/configuration-not-found') return 'El acceso por correo todavía no está activado en Firebase.';
+  if(c==='auth/too-many-requests') return 'Demasiados intentos. Espera un momento.';
+  if(c==='auth/network-request-failed') return 'Sin internet. Revisa tu conexión.';
+  if(c==='auth/operation-not-allowed') return 'El acceso por correo todavía no está activado en Firebase.';
+  return 'No se pudo entrar. Intenta de nuevo.';
+}
+
+function salir(){
+  if(typeof firebase!=='undefined' && firebase.auth) firebase.auth().signOut();
 }
 
 function cargar(){
@@ -152,7 +190,7 @@ function render(){
   else cont=renderStats();
   document.getElementById('app').innerHTML=tabs+cont
     +'<div style="text-align:center"><button onclick="cargar()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:600;cursor:pointer;padding:10px">🔄 Actualizar</button></div>'
-    +'<div class="foot">Club del Sur 🌿</div>';
+    +'<div class="foot">Club del Sur 🌿<br><span onclick="salir()" style="display:inline-block;margin-top:8px;color:var(--hint);cursor:pointer;text-decoration:underline">Salir</span></div>';
 }
 function setTab(t){ tab=t; render(); }
 

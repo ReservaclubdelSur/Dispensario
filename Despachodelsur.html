@@ -10,6 +10,7 @@
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyB0Q1XEQKatOfGSfhJeB28Ym-8pFdo5sTg",
@@ -46,6 +47,79 @@ function initFirebase(){
 }
 initFirebase();
 window.addEventListener('load', initFirebase);
+
+// ── ACCESO AL PANEL ───────────────────────────────────────────────
+// El panel no arranca (no lee ni escribe nada) hasta que haya alguien con sesión.
+// La sesión la guarda Firebase en este dispositivo: se pide una sola vez, no cada día.
+// Sin esto, cualquiera con la dirección de la página veía y editaba todo el club.
+function esperarLogin(arrancar){
+  const bg=document.getElementById('loginBg');
+  const err=document.getElementById('loginError');
+  const btn=document.getElementById('loginBtn');
+  const mail=document.getElementById('loginMail');
+  const pass=document.getElementById('loginPass');
+
+  if(typeof firebase==='undefined' || !firebase.auth){
+    if(err){ err.style.display='block'; err.textContent='Sin conexión. Revisa tu internet y recarga la página.'; }
+    return;
+  }
+
+  const mostrarError=t=>{ if(err){ err.style.display='block'; err.textContent=t; } if(btn){ btn.disabled=false; btn.textContent='Entrar'; } };
+
+  const intentar=()=>{
+    const m=(mail.value||'').trim(), p=pass.value||'';
+    if(!m || !p){ mostrarError('Escribe tu correo y tu contraseña.'); return; }
+    if(err) err.style.display='none';
+    btn.disabled=true; btn.textContent='Entrando…';
+    firebase.auth().signInWithEmailAndPassword(m,p).catch(e=>{
+      const c=(e&&e.code)||'';
+      if(c==='auth/wrong-password') mostrarError('Contraseña incorrecta.');
+      else if(c==='auth/invalid-credential'||c==='auth/invalid-login-credentials') mostrarError('Correo o contraseña incorrectos.');
+      else if(c==='auth/user-not-found') mostrarError('Ese correo no está registrado.');
+      else if(c==='auth/invalid-email') mostrarError('Ese correo está mal escrito.');
+      else if(c==='auth/configuration-not-found') mostrarError('El acceso por correo todavía no está activado en Firebase.');
+      else if(c==='auth/too-many-requests') mostrarError('Demasiados intentos. Espera un momento.');
+      else if(c==='auth/network-request-failed') mostrarError('Sin internet. Revisa tu conexión.');
+      else if(c==='auth/operation-not-allowed') mostrarError('El acceso por correo todavía no está activado en Firebase.');
+      else mostrarError('No se pudo entrar. Intenta de nuevo.');
+    });
+  };
+
+  btn.addEventListener('click',intentar);
+  mail.addEventListener('keydown',e=>{ if(e.key==='Enter') pass.focus(); });
+  pass.addEventListener('keydown',e=>{ if(e.key==='Enter') intentar(); });
+
+  let arrancado=false;
+  firebase.auth().onAuthStateChanged(u=>{
+    if(u){
+      window._usuario=u.email||'';
+      const sb=document.getElementById('sidebarUsuario');
+      if(sb) sb.textContent=window._usuario;
+      bg.style.display='none';
+      // Una sola vez: el panel no está hecho para arrancar dos veces en la misma carga
+      if(!arrancado){ arrancado=true; arrancar(); }
+    } else {
+      window._usuario='';
+      bg.style.display='flex';
+      pass.value='';
+      if(btn){ btn.disabled=false; btn.textContent='Entrar'; }
+      if(arrancado) location.reload(); // cerró sesión con el panel abierto: volver a empezar limpio
+      else setTimeout(()=>mail.focus(),150);
+    }
+  });
+}
+
+function salirDelPanel(){
+  showModal('Salir','¿Cerrar la sesión en este dispositivo? Vas a tener que escribir tu correo y contraseña la próxima vez.',()=>{
+    const cerrar=()=>{ if(typeof firebase!=='undefined' && firebase.auth) firebase.auth().signOut(); };
+    // Los cambios se suben 1,5 s después de tocarlos. Si quedó uno en cola, mandarlo antes de
+    // salir: una vez cerrada la sesión ya no se puede escribir y se perdería.
+    if(window._fbSaveTimer){
+      if(typeof toast==='function') toast('Guardando antes de salir…');
+      setTimeout(cerrar, 2000);
+    } else cerrar();
+  },'Salir');
+}
 
 // Sincronizar desde Firebase al abrir — FUSIONA con lo local, nunca borra
 function syncFromFirebase(callback, intentos){
@@ -237,6 +311,25 @@ td.right{text-align:right;font-weight:600}
 </style>
 </head>
 <body>
+
+<!-- Pantalla de acceso. Va visible desde el HTML (no desde el JS) para que el panel
+     no se alcance a ver ni un instante antes de entrar. -->
+<div id="loginBg" style="position:fixed;inset:0;z-index:100000;background:#1e3a5f;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:26px 24px;width:100%;max-width:360px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+    <div style="text-align:center;font-size:34px;line-height:1">🌿</div>
+    <div style="text-align:center;font-weight:800;font-size:17px;margin-top:6px">Dispensario del Sur</div>
+    <div id="loginSub" style="text-align:center;font-size:12.5px;color:#64748b;margin-top:3px">Entra con tu correo para continuar</div>
+    <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin:18px 0 6px">Correo</label>
+    <input id="loginMail" type="email" inputmode="email" autocomplete="username" placeholder="tucorreo@gmail.com"
+      style="width:100%;border:1.5px solid #cbd5e1;border-radius:10px;padding:12px;font-size:15px;font-family:inherit;outline:none">
+    <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin:14px 0 6px">Contraseña</label>
+    <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••"
+      style="width:100%;border:1.5px solid #cbd5e1;border-radius:10px;padding:12px;font-size:15px;font-family:inherit;outline:none">
+    <div id="loginError" style="display:none;margin-top:12px;background:#fef2f2;color:#991b1b;border-radius:10px;padding:10px 12px;font-size:13px;text-align:center"></div>
+    <button id="loginBtn" style="width:100%;margin-top:16px;background:#1e3a5f;color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Entrar</button>
+  </div>
+</div>
+
 <div class="shell">
   <aside class="sidebar">
     <div class="sidebar-logo">
@@ -269,7 +362,11 @@ td.right{text-align:right;font-weight:600}
       <div class="nav-item" id="nav-config"><span>⚙️</span>Productos</div>
       <div class="nav-item" id="nav-backup"><span>💾</span>Backup</div>
     </nav>
-    <div class="sidebar-footer">Santiago, CL · v2.3</div>
+    <div class="sidebar-footer">
+      <div id="sidebarUsuario" style="font-size:11px;opacity:.75;margin-bottom:6px;word-break:break-all"></div>
+      <span onclick="salirDelPanel()" style="cursor:pointer;text-decoration:underline;opacity:.8">🚪 Salir</span>
+      <div style="margin-top:6px">Santiago, CL · v2.3</div>
+    </div>
   </aside>
 
   <div class="main">
@@ -4368,6 +4465,8 @@ function exportCSV(){
 
 // ── EVENT LISTENERS ───────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
+  // Primero el acceso: nada del panel arranca sin sesión
+  esperarLogin(()=>{
   // Sincronizar desde Firebase primero, luego iniciar la app
   syncFromFirebase(()=>{
   // Recargar TODO lo que pudo llegar de la nube. Antes solo se releían los precios por comuna
@@ -4598,6 +4697,7 @@ cargarPedidosWeb();
 // Mostrar modal si no hay datos
 setTimeout(checkRestaurar, 100);
 }); // fin syncFromFirebase
+}); // fin esperarLogin
 }); // fin DOMContentLoaded</script>
 </body>
 </html>

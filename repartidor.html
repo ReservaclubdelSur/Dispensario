@@ -9,6 +9,7 @@
 <title>Ruta — Club del Sur</title>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyB0Q1XEQKatOfGSfhJeB28Ym-8pFdo5sTg",
@@ -65,29 +66,66 @@ header p{font-size:11px;opacity:.75;margin-top:1px}
 
 <script>
 const DB_PATH='dispensario';
-const CLAVE='ruta2026';
 let productos=[], entregas=[], hechas={};
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
+// ── ACCESO ────────────────────────────────────────────────────────
+// Antes había una clave escrita dentro de esta página (la veía cualquiera que
+// mirara el código). Ahora entra con su correo y contraseña, que viven en
+// Firebase y no están acá. La sesión queda guardada: se pide una sola vez por
+// teléfono, no cada vez que abre la página.
+let yaArranco=false;
+
 function initApp(){
-  if(sessionStorage.getItem('rep_ok')==='1'){ cargar(); }
-  else pantallaClave();
+  if(typeof firebase==='undefined' || !firebase.auth){
+    document.getElementById('app').innerHTML='<div class="card"><div class="msg">Sin conexión. Revisa tu internet y vuelve a abrir.</div></div>';
+    return;
+  }
+  firebase.auth().onAuthStateChanged(u=>{
+    if(u){ if(!yaArranco){ yaArranco=true; cargar(); } }
+    else { yaArranco=false; pantallaLogin(); }
+  });
 }
 
-function pantallaClave(){
+function pantallaLogin(aviso){
   document.getElementById('app').innerHTML=
     '<div class="card"><div class="card-h">🔒 Acceso repartidor</div>'
-    +'<div class="field"><label>Ingresa la clave</label>'
-    +'<input id="clave" type="password" inputmode="text" placeholder="••••••" onkeydown="if(event.key===\'Enter\')entrar()">'
-    +'<button class="btn" style="margin-top:12px" onclick="entrar()">Entrar</button></div></div>';
-  setTimeout(()=>{const e=document.getElementById('clave');if(e)e.focus();},200);
+    +'<div class="field"><label>Correo</label>'
+    +'<input id="mail" type="email" inputmode="email" autocomplete="username" style="text-align:left;letter-spacing:0" placeholder="tucorreo@gmail.com" onkeydown="if(event.key===\'Enter\')document.getElementById(\'pass\').focus()">'
+    +'<label style="margin-top:14px">Contraseña</label>'
+    +'<input id="pass" type="password" autocomplete="current-password" placeholder="••••••" onkeydown="if(event.key===\'Enter\')entrar()">'
+    +(aviso?'<div id="aviso" style="margin-top:12px;background:#fef2f2;color:#991b1b;border-radius:10px;padding:10px 12px;font-size:13px;text-align:center">'+esc(aviso)+'</div>':'')
+    +'<button class="btn" id="btnEntrar" style="margin-top:12px" onclick="entrar()">Entrar</button></div></div>';
+  setTimeout(()=>{const e=document.getElementById('mail');if(e)e.focus();},200);
 }
 
 function entrar(){
-  const v=(document.getElementById('clave').value||'').trim();
-  if(v===CLAVE){ sessionStorage.setItem('rep_ok','1'); cargar(); }
-  else { const i=document.getElementById('clave'); i.value=''; i.placeholder='Clave incorrecta'; i.style.borderColor='#e74c3c'; }
+  const mail=(document.getElementById('mail').value||'').trim();
+  const pass=document.getElementById('pass').value||'';
+  if(!mail || !pass){ pantallaLogin('Escribe tu correo y tu contraseña.'); return; }
+  const btn=document.getElementById('btnEntrar');
+  btn.disabled=true; btn.textContent='Entrando…';
+  firebase.auth().signInWithEmailAndPassword(mail, pass)
+    .catch(e=>pantallaLogin(mensajeLogin(e)));
+}
+
+// Traduce el error de Firebase a algo que se entienda
+function mensajeLogin(e){
+  const c=(e&&e.code)||'';
+  if(c==='auth/wrong-password') return 'Contraseña incorrecta.';
+  if(c==='auth/invalid-credential'||c==='auth/invalid-login-credentials') return 'Correo o contraseña incorrectos.';
+  if(c==='auth/user-not-found') return 'Ese correo no está registrado.';
+  if(c==='auth/invalid-email') return 'Ese correo está mal escrito.';
+  if(c==='auth/configuration-not-found') return 'El acceso por correo todavía no está activado en Firebase.';
+  if(c==='auth/too-many-requests') return 'Demasiados intentos. Espera un momento.';
+  if(c==='auth/network-request-failed') return 'Sin internet. Revisa tu conexión.';
+  if(c==='auth/operation-not-allowed') return 'El acceso por correo todavía no está activado en Firebase.';
+  return 'No se pudo entrar. Intenta de nuevo.';
+}
+
+function salir(){
+  if(typeof firebase!=='undefined' && firebase.auth) firebase.auth().signOut();
 }
 
 function cargar(){
@@ -147,7 +185,7 @@ function render(){
     '<div class="topcount">📦 '+done+' de '+total+' entregadas</div>'
     +'<div class="lista">'+filas+'</div>'
     +'<div style="text-align:center"><button onclick="cargar()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:600;cursor:pointer;padding:12px">🔄 Actualizar</button></div>'
-    +'<div class="foot">Toca una entrega para marcarla ✅</div>';
+    +'<div class="foot">Toca una entrega para marcarla ✅<br><span onclick="salir()" style="display:inline-block;margin-top:8px;color:var(--hint);cursor:pointer;text-decoration:underline">Salir</span></div>';
 }
 
 function marcar(id){
