@@ -1671,6 +1671,7 @@ function limpiarPruebasWeb(){
     if(!db){toast('⚠️ Sin conexión');return;}
     db.ref(DB_PATH+'/dds_pedidos_web').remove().then(()=>{
       db.ref(DB_PATH+'/dds_entregas_hechas').remove().catch(()=>{});
+      db.ref(DB_PATH+'/dds_web_topes').remove().catch(()=>{});
       rutaEntregas=[]; pedidosWeb=[]; updateWebBadge();
       pintarRuta();
       toast('✅ Pedidos web limpiados');
@@ -1890,8 +1891,24 @@ function cargarPedidosWeb(cb){
     pedidosWeb = Object.values(d).filter(Boolean).filter(p=>p.estado!=='agregado'&&p.estado!=='confirmado'&&p.estado!=='descartado');
     pedidosWeb.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
     updateWebBadge();
+    republicarTopesWeb(d);
     if(cb)cb();
   }).catch(()=>{ if(cb)cb(); });
+}
+
+// El menú público ya no lee los pedidos (traían nombre, RUT, teléfono y dirección): para saber
+// cuántos gramos quedan de una cepa con tope lee dds_web_topes, que son solo gramos por pedido.
+// Acá se rehace desde los pedidos de verdad, así cualquier descuadre se corrige solo.
+function republicarTopesWeb(pedidos){
+  if(!db) return;
+  const topes={};
+  Object.entries(pedidos||{}).forEach(([id,p])=>{
+    if(!p || p.estado==='descartado') return;
+    const q={};
+    Object.entries(p.qtys||{}).forEach(([pid,g])=>{ if((parseFloat(g)||0)>0) q[pid]=parseFloat(g); });
+    if(Object.keys(q).length) topes[id]=q;
+  });
+  db.ref(DB_PATH+'/dds_web_topes').set(topes).catch(e=>console.warn('FB topes:',e));
 }
 
 function updateWebBadge(){
@@ -1993,6 +2010,8 @@ function descartarPedidoWeb(id){
   const p=pedidosWeb.find(x=>x.id===id); if(!p) return;
   showModal('Descartar pedido','¿Descartar el pedido de <strong>'+esc(p.nombre)+'</strong>? No se agregará a ninguna semana.',()=>{
     if(db) db.ref(DB_PATH+'/dds_pedidos_web/'+id+'/estado').set('descartado').catch(()=>{});
+    // Al descartar, esos gramos vuelven a quedar disponibles en el menú
+    if(db) db.ref(DB_PATH+'/dds_web_topes/'+id).remove().catch(()=>{});
     pedidosWeb=pedidosWeb.filter(x=>x.id!==id);
     updateWebBadge();
     renderPedidosWeb();
@@ -4573,6 +4592,9 @@ document.getElementById('btnRecetasLimpiar').addEventListener('click',()=>showMo
 updateRecetasBadge();
 updateStockBadge();
 updateSociosBadge();
+// Al abrir el panel: marca los pedidos web pendientes y deja al día el contador de gramos
+// que usa el menú (dds_web_topes). Antes solo se cargaban al entrar a la pestaña.
+cargarPedidosWeb();
 // Mostrar modal si no hay datos
 setTimeout(checkRestaurar, 100);
 }); // fin syncFromFirebase

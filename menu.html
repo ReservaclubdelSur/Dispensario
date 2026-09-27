@@ -144,23 +144,24 @@ function estadoReceta(fecha){
 let topeDisp={}; // gramos que quedan por cepa con tope
 
 // Esta página es pública: pide SOLO los nodos que necesita, nunca la base completa.
-// Fuera quedan semanas, clientes, stock, períodos, socios y la lista de recetas.
+// Fuera quedan semanas, clientes, stock, períodos, socios, la lista de recetas y los pedidos.
 function cargar(){
   if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo conectar. Revisa tu internet y recarga la página.</div></div>'; return; }
   const pedir=n=>db.ref(DB_PATH+'/'+n).once('value').then(s=>s.val());
-  Promise.all([pedir('dds_prods'),pedir('dds_desp'),pedir('dds_comuna_precios'),pedir('dds_pedidos_web')]).then(([prods,desp,comPrecios,web])=>{
+  Promise.all([pedir('dds_prods'),pedir('dds_desp'),pedir('dds_comuna_precios'),pedir('dds_web_topes')]).then(([prods,desp,comPrecios,topes])=>{
     productos=(prods||[]).filter(Boolean);
     precioDelivery=desp||5000;
     comunaPrecios=comPrecios||{};
-    // Calcular tope disponible: topeMenu del producto menos lo ya pedido en pedidos web activos
-    const pedidosActivos=Object.values(web||{}).filter(Boolean).filter(p=>p.estado!=='descartado');
+    // Calcular tope disponible: topeMenu del producto menos lo ya pedido.
+    // dds_web_topes trae solo gramos por pedido ({prodId: gramos}), sin nombres ni direcciones;
+    // el pedido descartado se borra de ahí, así que lo que está acá es lo que sigue contando.
+    const usados={};
+    Object.values(topes||{}).filter(Boolean).forEach(q=>{
+      Object.entries(q).forEach(([pid,g])=>{ usados[pid]=(usados[pid]||0)+(parseFloat(g)||0); });
+    });
     topeDisp={};
     productos.forEach(p=>{
-      if(p.topeMenu!=null){
-        let usado=0;
-        pedidosActivos.forEach(ped=>{ usado+=(ped.qtys||{})[p.id]||0; });
-        topeDisp[p.id]=Math.max(0, p.topeMenu - usado);
-      }
+      if(p.topeMenu!=null) topeDisp[p.id]=Math.max(0, p.topeMenu - (usados[p.id]||0));
     });
     render();
   }).catch(()=>{
@@ -392,7 +393,13 @@ function confirmarPago(){
   const btn=document.getElementById('btnPagado');
   btn.disabled=true; btn.textContent='Enviando…'; btn.style.background='#cbd5e1';
 
+  // Los gramos van aparte en dds_web_topes: es lo único que el menú necesita poder leer después,
+  // así el nodo con los datos de la persona no lo lee nadie desde acá.
+  const soloGramos={};
+  Object.entries(pedidoPendiente.qtys||{}).forEach(([pid,g])=>{ if((parseFloat(g)||0)>0) soloGramos[pid]=parseFloat(g); });
+
   db.ref(DB_PATH+'/dds_pedidos_web/'+pedidoPendiente.id).set(JSON.parse(JSON.stringify(pedidoPendiente)))
+    .then(()=>db.ref(DB_PATH+'/dds_web_topes/'+pedidoPendiente.id).set(soloGramos).catch(()=>{}))
     .then(()=>gracias(pedidoPendiente))
     .catch(()=>{
       btn.disabled=false; btn.textContent='Confirmar pedido'; btn.style.background='var(--green)';
