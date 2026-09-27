@@ -161,6 +161,15 @@ function mensajeLogin(e){
   return 'No se pudo entrar. Intenta de nuevo.';
 }
 
+// La base rechazo a esta cuenta: se equivoco de pagina. Antes decia solo "no se pudo cargar".
+function sinAcceso(){
+  const u=(typeof firebase!=='undefined' && firebase.auth && firebase.auth().currentUser) ? (firebase.auth().currentUser.email||'') : '';
+  document.getElementById('app').innerHTML=
+    '<div class="card"><div class="card-h">🔒 Esta cuenta no entra acá</div>'
+    +'<div class="field" style="text-align:center"><div style="font-size:13px;color:var(--muted);line-height:1.6">Entraste como <strong>'+esc(u||"—")+'</strong>, y esa cuenta no tiene acceso al panel de la contadora.<br>Sal y entra con la cuenta correcta.</div>'
+    +'<button class="btn" style="margin-top:14px" onclick="salir()">Salir</button></div></div>';
+}
+
 function salir(){
   if(typeof firebase!=='undefined' && firebase.auth) firebase.auth().signOut();
 }
@@ -173,7 +182,8 @@ function cargar(){
   if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">Sin conexión.</div></div>'; return; }
   document.getElementById('app').innerHTML='<div class="card"><div class="msg">Cargando…</div></div>';
   let llegaron=0;
-  const error=()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar.</div></div>'; };
+  const error=(e)=>{ if(e && e.code==='PERMISSION_DENIED'){ sinAcceso(); return; }
+    document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar.</div></div>'; };
   NODOS.forEach(n=>{
     const ref=db.ref(DB_PATH+'/'+n);
     ref.off(); // el botón "Actualizar" llama de nuevo a cargar(): sin esto se irían apilando

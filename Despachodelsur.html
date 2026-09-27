@@ -109,6 +109,20 @@ function esperarLogin(arrancar){
   });
 }
 
+// La base rechazó a esta cuenta. Pasa cuando alguien entra al panel con la cuenta del
+// repartidor o la de la contadora: antes quedaba un panel vacío con cara de estar roto.
+function pantallaSinAcceso(){
+  const bg=document.getElementById('loginBg');
+  if(!bg) return;
+  bg.style.display='flex';
+  bg.innerHTML='<div style="background:#fff;border-radius:16px;padding:26px 24px;width:100%;max-width:360px;box-shadow:0 10px 40px rgba(0,0,0,.3);text-align:center">'
+    +'<div style="font-size:34px;line-height:1">🔒</div>'
+    +'<div style="font-weight:800;font-size:17px;margin-top:8px">Esta cuenta no entra acá</div>'
+    +'<div style="font-size:13px;color:#64748b;margin-top:8px;line-height:1.6">Entraste como <strong>'+esc(window._usuario||'—')+'</strong>, y esa cuenta no tiene acceso al panel.<br>Sal y entra con la cuenta de administración.</div>'
+    +'<button onclick="firebase.auth().signOut().then(()=>location.reload())" style="width:100%;margin-top:18px;background:#1e3a5f;color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Salir</button>'
+    +'</div>';
+}
+
 function salirDelPanel(){
   showModal('Salir','¿Cerrar la sesión en este dispositivo? Vas a tener que escribir tu correo y contraseña la próxima vez.',()=>{
     const cerrar=()=>{ if(typeof firebase!=='undefined' && firebase.auth) firebase.auth().signOut(); };
@@ -172,7 +186,11 @@ function syncFromFirebase(callback, intentos){
       });
     }
     callback();
-  }).catch(()=>{ window._sinNube = true; window._syncOk = false; callback(); });
+  }).catch(e=>{
+    // Si la base dice que no, no es falta de internet: es que esa cuenta no tiene acceso al panel
+    if(e && e.code==='PERMISSION_DENIED'){ pantallaSinAcceso(); return; }
+    window._sinNube = true; window._syncOk = false; callback();
+  });
 }
 </script>
 <style>
