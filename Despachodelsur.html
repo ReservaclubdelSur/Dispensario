@@ -1101,6 +1101,24 @@ function recetasPublicas(){
   return out;
 }
 
+// Lo único que necesita ver el repartidor: las entregas de la semana más nueva, con nombre,
+// dirección, comuna y teléfono. Sin RUT, sin qué lleva, sin montos y sin el historial de
+// semanas anteriores. Así su cuenta no necesita permiso para leer dds_weeks.
+function rutaPublica(){
+  const toD=s=>{const p=String(s||'').split('-');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
+  const w=[...(weeks||[])].filter(Boolean).sort((a,b)=>toD(b.label)-toD(a.label))[0];
+  if(!w) return null;
+  const rows=(w.rows||[]).filter(r=>r && r.hasDesp!==false).map(r=>({
+    id:r.id||'', nombre:r.nombre||'', direccion:r.direccion||'', comuna:r.comuna||'', telefono:r.telefono||''
+  }));
+  return {label:w.label||'', rows:rows};
+}
+
+function publicarRuta(){
+  if(!db || !window._syncOk) return;
+  db.ref(DB_PATH+'/dds_ruta').set(rutaPublica()).catch(e=>console.warn('FB ruta:',e));
+}
+
 function saveAll(){
   // Guardar en cada pedido del período actual el precio de hoy de lo que lleva (si aún no lo tiene).
   // Solo el período actual: el historial ya tiene sus precios y no debe tomar los de hoy.
@@ -1128,6 +1146,7 @@ function saveAll(){
       db.ref(DB_PATH).update(limpio).catch(e=>console.warn('FB save:',e));
       // Va con set (no update) para que una receta borrada desaparezca también de la lista pública.
       db.ref(DB_PATH+'/dds_recetas_pub').set(recetasPublicas()).catch(e=>console.warn('FB recetas_pub:',e));
+      publicarRuta();
     },1500);
   } else {
     avisarSinNube();
@@ -4694,6 +4713,8 @@ updateSociosBadge();
 // Al abrir el panel: marca los pedidos web pendientes y deja al día el contador de gramos
 // que usa el menú (dds_web_topes). Antes solo se cargaban al entrar a la pestaña.
 cargarPedidosWeb();
+// Y deja al día la ruta que ve el repartidor
+publicarRuta();
 // Mostrar modal si no hay datos
 setTimeout(checkRestaurar, 100);
 }); // fin syncFromFirebase

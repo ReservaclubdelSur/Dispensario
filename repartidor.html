@@ -66,7 +66,7 @@ header p{font-size:11px;opacity:.75;margin-top:1px}
 
 <script>
 const DB_PATH='dispensario';
-let productos=[], entregas=[], hechas={};
+let entregas=[], hechas={};
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
@@ -128,21 +128,35 @@ function salir(){
   if(typeof firebase!=='undefined' && firebase.auth) firebase.auth().signOut();
 }
 
+// Esta página pide SOLO dos nodos. Antes se bajaba la base entera: todas las semanas
+// con todos los clientes, los montos, las recetas y el stock. Ahora lee dds_ruta, que
+// el panel arma con las entregas de la semana y nada más: nombre, dirección, comuna
+// y teléfono. Sin RUT, sin qué lleva cada uno y sin plata.
+const NODOS=['dds_ruta','dds_entregas_hechas'];
+
 function cargar(){
   if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">Sin conexión. Revisa tu internet.</div></div>'; return; }
   document.getElementById('app').innerHTML='<div class="card"><div class="msg">Cargando ruta…</div></div>';
-  // Escucha en tiempo real: cualquier cambio se refleja solo
-  db.ref(DB_PATH).on('value', snap=>{
-    const d=snap.val()||{};
-    productos=(d.dds_prods||[]).filter(Boolean);
-    const wk=(d.dds_weeks||[]).filter(Boolean).map(w=>({...w,rows:(w.rows||[]).filter(Boolean)}));
-    const toD=s=>{const p=String(s||'').split('-');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
-    const actual = wk.length ? [...wk].sort((a,b)=>toD(b.label)-toD(a.label))[0] : null;
-    entregas = actual ? (actual.rows||[]).filter(r=>r.hasDesp!==false) : [];
-    hechas=d.dds_entregas_hechas||{};
-    entregas.sort((a,b)=>(a.comuna||'').localeCompare(b.comuna||''));
-    render();
-  }, ()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar. Intenta de nuevo.</div></div>'; });
+  const d={}; let llegaron=0;
+  const error=()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar. Intenta de nuevo.</div></div>'; };
+  // Escucha en tiempo real, nodo por nodo: cualquier cambio se refleja solo
+  NODOS.forEach(n=>{
+    const ref=db.ref(DB_PATH+'/'+n);
+    ref.off();
+    ref.on('value', snap=>{
+      d[n]=snap.val();
+      llegaron++;
+      if(llegaron>=NODOS.length) armarRuta(d);
+    }, error);
+  });
+}
+
+function armarRuta(d){
+  const ruta=d.dds_ruta||{};
+  entregas=(ruta.rows||[]).filter(Boolean);
+  hechas=d.dds_entregas_hechas||{};
+  entregas.sort((a,b)=>(a.comuna||'').localeCompare(b.comuna||''));
+  render();
 }
 
 function render(){

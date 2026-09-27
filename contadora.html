@@ -165,17 +165,32 @@ function salir(){
   if(typeof firebase!=='undefined' && firebase.auth) firebase.auth().signOut();
 }
 
+// Esta página pide SOLO los nodos que usa. Antes se bajaba la base entera, así que la
+// cuenta de la contadora habría necesitado permiso sobre todo, incluido stock y socios.
+const NODOS=['dds_prods','dds_weeks','dds_recetas','dds_periodos','dds_pedidos_web','dds_semana_revisada','dds_desp'];
+
 function cargar(){
   if(!db){ document.getElementById('app').innerHTML='<div class="card"><div class="msg">Sin conexión.</div></div>'; return; }
   document.getElementById('app').innerHTML='<div class="card"><div class="msg">Cargando…</div></div>';
-  db.ref(DB_PATH).on('value', snap=>{
-    data=snap.val()||{};
-    productos=(data.dds_prods||[]).filter(Boolean);
-    recetas=(data.dds_recetas||[]).filter(Boolean);
-    weeks=(data.dds_weeks||[]).filter(Boolean).map(w=>({...w,rows:(w.rows||[]).filter(Boolean)}));
-    periodos=(data.dds_periodos||[]).filter(Boolean);
-    render();
-  }, ()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar.</div></div>'; });
+  let llegaron=0;
+  const error=()=>{ document.getElementById('app').innerHTML='<div class="card"><div class="msg">No se pudo cargar.</div></div>'; };
+  NODOS.forEach(n=>{
+    const ref=db.ref(DB_PATH+'/'+n);
+    ref.off(); // el botón "Actualizar" llama de nuevo a cargar(): sin esto se irían apilando
+    ref.on('value', snap=>{
+      data[n]=snap.val();
+      llegaron++;
+      if(llegaron>=NODOS.length) armarVista();
+    }, error);
+  });
+}
+
+function armarVista(){
+  productos=(data.dds_prods||[]).filter(Boolean);
+  recetas=(data.dds_recetas||[]).filter(Boolean);
+  weeks=(data.dds_weeks||[]).filter(Boolean).map(w=>({...w,rows:(w.rows||[]).filter(Boolean)}));
+  periodos=(data.dds_periodos||[]).filter(Boolean);
+  render();
 }
 
 function render(){
