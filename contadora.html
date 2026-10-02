@@ -65,6 +65,10 @@ header p{font-size:12px;opacity:.75;margin-top:2px}
 .kpi-v{font-size:20px;font-weight:800}
 .foot{text-align:center;font-size:11px;color:var(--hint);padding:18px 14px 4px}
 .resumen{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto}
+.pago-rep{display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,#166534,#15803d);color:#fff;border-radius:var(--radius-lg);padding:13px 16px;margin-bottom:12px}
+.pago-rep-l{font-size:12px;font-weight:700;letter-spacing:.02em}
+.pago-rep-sub{font-size:11px;opacity:.85;margin-top:2px}
+.pago-rep-v{font-size:22px;font-weight:800;white-space:nowrap}
 .r-item{flex:1;min-width:72px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:9px 10px;text-align:center}
 .r-item span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}
 .r-item strong{font-size:14px;font-weight:800}
@@ -231,6 +235,10 @@ function renderPagos(){
   const totalSemana=rows.reduce((a,r)=>a+rowTotal(r,desp),0);
   const cobrado=rows.filter(r=>r.pagado).reduce((a,r)=>a+rowTotal(r,desp),0);
   const falta=totalSemana-cobrado;
+  // Lo que hay que pagarle al repartidor por esta semana. El mismo número lo ve él en su
+  // página, así los dos miran lo mismo.
+  const alRepartidorSemana=rows.reduce((a,r)=>a+despDeFila(r,desp),0);
+  const conDelivery=rows.filter(r=>r.hasDesp!==false).length;
 
   const filas=rows.map((r)=>{
     const val=rowTotal(r,desp);
@@ -247,6 +255,11 @@ function renderPagos(){
       +'<div class="r-item"><span>Cobrado</span><strong style="color:var(--green)">'+fmt(cobrado)+'</strong></div>'
       +'<div class="r-item"><span>Falta</span><strong style="color:'+(falta>0?'var(--red)':'var(--green)')+'">'+fmt(falta)+'</strong></div>'
       +'<div class="r-item"><span>Pagados</span><strong>'+pagados+'/'+rows.length+'</strong></div>'
+    +'</div>'
+    +'<div class="pago-rep">'
+      +'<div><div class="pago-rep-l">🚚 Pagar al repartidor</div>'
+      +'<div class="pago-rep-sub">'+conDelivery+' entregas · semana '+esc(wk.label)+'</div></div>'
+      +'<div class="pago-rep-v">'+fmt(alRepartidorSemana)+'</div>'
     +'</div>'
     +'<div style="display:flex;gap:8px;margin-bottom:12px">'
       +'<button class="btn" style="background:var(--surface);color:var(--primary);border:1px solid var(--border2);padding:12px" onclick="exportarPDF()">📄 PDF</button>'

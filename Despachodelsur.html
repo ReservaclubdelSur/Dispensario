@@ -1126,10 +1126,15 @@ function rutaPublica(){
   const toD=s=>{const p=String(s||'').split('-');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
   const w=[...(weeks||[])].filter(Boolean).sort((a,b)=>toD(b.label)-toD(a.label))[0];
   if(!w) return null;
-  const rows=(w.rows||[]).filter(r=>r && r.hasDesp!==false).map(r=>({
-    id:r.id||'', nombre:r.nombre||'', direccion:r.direccion||'', comuna:r.comuna||'', telefono:r.telefono||''
-  }));
-  return {label:w.label||'', rows:rows};
+  // Va también lo que se le paga por cada entrega, y el total de la semana. Es el mismo
+  // número que ve la contadora en Pagos, para que los dos miren lo mismo y no haya dudas.
+  let total=0;
+  const rows=(w.rows||[]).filter(r=>r && r.hasDesp!==false).map(r=>{
+    const d=despDeFila(r);
+    total+=d;
+    return { id:r.id||'', nombre:r.nombre||'', direccion:r.direccion||'', comuna:r.comuna||'', telefono:r.telefono||'', desp:d };
+  });
+  return {label:w.label||'', rows:rows, totalRepartidor:total};
 }
 
 function publicarRuta(){

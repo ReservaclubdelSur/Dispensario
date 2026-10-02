@@ -41,6 +41,11 @@ header p{font-size:11px;opacity:.75;margin-top:1px}
 .btn{width:100%;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-lg);padding:15px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
 .msg{padding:34px 20px;text-align:center;color:var(--muted);font-size:14px}
 .topcount{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;font-size:13px;font-weight:700;color:var(--primary);text-align:center}
+.pago-box{background:linear-gradient(135deg,#166534,#15803d);color:#fff;border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:10px;text-align:center}
+.pago-l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;opacity:.85;font-weight:600}
+.pago-v{font-size:27px;font-weight:800;line-height:1.15;margin-top:2px}
+.pago-sub{font-size:12px;opacity:.85;margin-top:3px}
+.ent-pago{flex-shrink:0;font-size:13px;font-weight:700;color:var(--green);margin-left:4px}
 .lista{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:12px}
 .ent{display:flex;align-items:center;gap:11px;padding:11px 13px;border-bottom:1px solid var(--border);-webkit-tap-highlight-color:transparent}
 .ent:last-child{border-bottom:none}
@@ -66,7 +71,9 @@ header p{font-size:11px;opacity:.75;margin-top:1px}
 
 <script>
 const DB_PATH='dispensario';
-let entregas=[], hechas={};
+let entregas=[], hechas={}, pagoSemana=0, semanaLabel='';
+
+function fmt(n){return '$'+(Math.round(n)||0).toLocaleString('es-CL')}
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
@@ -165,6 +172,9 @@ function armarRuta(d){
   const ruta=d.dds_ruta||{};
   entregas=(ruta.rows||[]).filter(Boolean);
   hechas=d.dds_entregas_hechas||{};
+  semanaLabel=ruta.label||'';
+  // Si una ruta vieja todavía no trae el total, se suma de las entregas
+  pagoSemana = (ruta.totalRepartidor!=null) ? ruta.totalRepartidor : entregas.reduce((a,e)=>a+(e.desp||0),0);
   entregas.sort((a,b)=>(a.comuna||'').localeCompare(b.comuna||''));
   render();
 }
@@ -199,14 +209,24 @@ function render(){
             +'<span class="ent-dir">'+esc(e.direccion||'')+'</span>'
           +'</div>'
         +'</div>'
+        +(e.desp?'<span class="ent-pago">'+fmt(e.desp)+'</span>':'')
         +(tel?'<a class="ent-wa" href="tel:'+tel+'" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" width="22" height="22" fill="#25d366"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></a>':'')
       +'</div>';
     }).join('');
     return '<div class="comuna-h">'+esc(comuna)+' <span class="comuna-n">'+grupos[comuna].length+'</span></div>'+items;
   }).join('');
 
+  // Lo que te pagan por esta ruta. Es el mismo número que ve la contadora en su pantalla.
+  const pagoHechas=entregas.filter(e=>hechas[e.id]).reduce((a,e)=>a+(e.desp||0),0);
+  const cajaPago='<div class="pago-box">'
+    +'<div class="pago-l">Pago de la semana'+(semanaLabel?' · '+esc(semanaLabel):'')+'</div>'
+    +'<div class="pago-v">'+fmt(pagoSemana)+'</div>'
+    +(done<total?'<div class="pago-sub">Llevas '+fmt(pagoHechas)+' en '+done+' de '+total+' entregas</div>':'<div class="pago-sub">Ruta completa ✅</div>')
+    +'</div>';
+
   document.getElementById('app').innerHTML=
-    '<div class="topcount">📦 '+done+' de '+total+' entregadas</div>'
+    cajaPago
+    +'<div class="topcount">📦 '+done+' de '+total+' entregadas</div>'
     +'<div class="lista">'+filas+'</div>'
     +'<div style="text-align:center"><button onclick="cargar()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:600;cursor:pointer;padding:12px">🔄 Actualizar</button></div>'
     +'<div class="foot">Toca una entrega para marcarla ✅<br><span onclick="salir()" style="display:inline-block;margin-top:8px;color:var(--hint);cursor:pointer;text-decoration:underline">Salir</span></div>';
