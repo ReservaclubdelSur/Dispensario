@@ -1271,6 +1271,36 @@ function pad(n){return String(n).padStart(2,'0')}
 function uid(){return 'x'+Date.now()+Math.floor(Math.random()*9999)}
 function fmt(n){return '$'+(Math.round(n)||0).toLocaleString('es-CL')}
 function cw(){return weeks.find(w=>w.id===curId)||weeks[0]}
+
+// Busca una semana DENTRO de la nube y devuelve su posición real y sus filas.
+//
+// Por qué: las semanas se guardan en una lista, y este dispositivo puede tenerlas en otro
+// orden que la nube (al abrir el panel se fusionan y el orden resultante depende de lo que
+// ya había acá). Hasta el 07-10-2026 se escribía usando la posición de la lista LOCAL, y si
+// los órdenes no coincidían se leía y se escribía en OTRA semana: el pedido aparecía en una
+// semana vieja, y peor, las filas de la semana buena quedaban reemplazadas por las de la otra.
+function buscarSemanaEnNube(wk){
+  if(!db || !wk) return Promise.resolve(null);
+  return db.ref(DB_PATH+'/dds_weeks').once('value').then(snap=>{
+    const raw=snap.val();
+    if(!raw) return null;
+    const claves = Array.isArray(raw) ? raw.map((_,i)=>i) : Object.keys(raw);
+    let k = claves.find(c=>raw[c] && wk.id && raw[c].id===wk.id);
+    if(k===undefined) k = claves.find(c=>raw[c] && raw[c].label===wk.label);
+    if(k===undefined) return null;
+    let rows=raw[k].rows;
+    rows=Array.isArray(rows)?rows.filter(Boolean):(rows?Object.values(rows).filter(Boolean):[]);
+    return {clave:k, rows:rows};
+  });
+}
+
+// A qué semana va un pedido que llega del menú web: SIEMPRE la más nueva por fecha.
+// Antes iba a la que estuviera abierta en el selector de arriba, sin avisar: si habías
+// dejado abierta una semana vieja, el pedido caía ahí y no te enterabas (07-10-2026).
+function semanaDestinoWeb(){
+  const toD=s=>{const p=String(s||'').split('-');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0);};
+  return [...(weeks||[])].filter(Boolean).sort((a,b)=>toD(b.label)-toD(a.label))[0] || cw();
+}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function normComuna(c){return String(c||"").toLowerCase().normalize("NFD").replace(/[0300-036f]/g,"").replace(/[^a-z0-9]/g,"");}
 // Busca el precio aunque la comuna esté escrita distinto: "MAIPU", "Maipu" y "Maipú" son la misma.
@@ -1319,11 +1349,9 @@ function refrescarPagosSemana(){
   const wk=cw(); if(!wk) return;
   if(!db && typeof initFirebase==='function') initFirebase();
   if(!db) return;
-  const wkIndex=weeks.findIndex(w=>w.label===wk.label);
-  if(wkIndex<0) return;
-  db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').once('value').then(snap=>{
-    let rowsNube=snap.val();
-    rowsNube=Array.isArray(rowsNube)?rowsNube.filter(Boolean):(rowsNube?Object.values(rowsNube).filter(Boolean):[]);
+  buscarSemanaEnNube(wk).then(enNube=>{
+    if(!enNube) return;
+    const rowsNube=enNube.rows;
     if(!rowsNube.length) return;
     // actualizar solo el campo pagado de cada fila (por id) sin pisar lo que estés editando
     let cambio=false;
@@ -1931,11 +1959,10 @@ function renderVistaPagos(){
   if(!db && typeof initFirebase==='function') initFirebase();
   if(!db){ pintarVistaPagos(wk.rows||[]); return; }
   list.innerHTML='<div class="empty" style="padding:1.5rem">Consultando…</div>';
-  const wkIndex=weeks.findIndex(w=>w.label===wk.label);
-  if(wkIndex<0){ pintarVistaPagos(wk.rows||[]); return; }
-  db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').once('value').then(snap=>{
-    let rowsNube=snap.val();
-    rowsNube=Array.isArray(rowsNube)?rowsNube.filter(Boolean):(rowsNube?Object.values(rowsNube).filter(Boolean):[]);
+  buscarSemanaEnNube(wk).then(enNube=>{
+    // Si la semana no está en la nube, mostrar lo local y NO tocar nada
+    if(!enNube){ pintarVistaPagos(wk.rows||[]); return; }
+    const rowsNube=enNube.rows;
     // reflejar en memoria para que el resto de la app también quede al día
     wk.rows=rowsNube; lsSet('dds_weeks', weeks);
     pintarVistaPagos(rowsNube);
@@ -2060,15 +2087,26 @@ function renderPedidosWeb(){
   const list=document.getElementById('webList'); if(!list) return;
   list.innerHTML='<div class="empty" style="padding:1.5rem">Consultando…</div>';
   cargarPedidosWeb(()=>{
+    const destino=semanaDestinoWeb();
+    // Siempre a la vista: a qué semana van a caer estos pedidos, y aviso si estás mirando otra
+    const mirandoOtra = destino && cw() && cw().id!==destino.id;
+    const banner = destino
+      ? '<div style="padding:11px 18px;background:'+(mirandoOtra?'#fffbeb':'#f0f9ff')+';border-bottom:1px solid '+(mirandoOtra?'#fde68a':'#bae6fd')+';font-size:13px">'
+          +'📅 Los pedidos se agregan a: <strong>Semana '+esc(destino.label)+'</strong>'
+          +(mirandoOtra?'<div style="font-size:11.5px;color:#92400e;margin-top:3px">Estás mirando la semana '+esc(cw().label)+', pero igual van a la más nueva.</div>':'')
+        +'</div>'
+      : '';
+
     if(!pedidosWeb.length){
-      list.innerHTML='<div class="empty" style="padding:2rem">Sin pedidos nuevos 🌿</div>';
+      list.innerHTML=banner+'<div class="empty" style="padding:2rem">Sin pedidos nuevos 🌿</div>';
       return;
     }
-    list.innerHTML=pedidosWeb.map(p=>{
+    list.innerHTML=banner+pedidosWeb.map(p=>{
       const items=products.filter(x=>(p.qtys||{})[x.id]>0)
         .map(x=>'<span style="background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:3px 10px;font-size:12px;white-space:nowrap">'+(x.emoji||'🌿')+' '+p.qtys[x.id]+'g '+esc(x.name)+'</span>').join('');
       const fecha=p.fecha?new Date(p.fecha).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-      const yaExiste=cw().rows.some(r=>nombreNorm(r.nombre)===nombreNorm(p.nombre||''));
+      // Se busca en la semana a la que va a caer, no en la que estés mirando
+      const yaExiste=((destino&&destino.rows)||[]).some(r=>r&&nombreNorm(r.nombre)===nombreNorm(p.nombre||''));
       return '<div style="padding:14px 18px;border-bottom:1px solid var(--border)">'
         +'<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
           +'<div style="flex:1;min-width:180px">'
@@ -2095,7 +2133,8 @@ function renderPedidosWeb(){
 
 function agregarPedidoWeb(id){
   const p=pedidosWeb.find(x=>x.id===id); if(!p) return;
-  const wk=cw();
+  const wk=semanaDestinoWeb();
+  if(!wk){ toast('⚠️ No hay ninguna semana creada'); return; }
   const qtys={};
   products.forEach(x=>qtys[x.id]=(p.qtys||{})[x.id]||0);
   const nuevaFila={
@@ -2110,8 +2149,6 @@ function agregarPedidoWeb(id){
     pagado:false,
     obs:p.obs||''
   };
-  const wkIndex=weeks.findIndex(w=>w.label===wk.label);
-
   const confirmarWeb=()=>{
     if(db) db.ref(DB_PATH+'/dds_pedidos_web/'+id).update({
       estado:'confirmado', semanaLabel:wk.label,
@@ -2120,20 +2157,21 @@ function agregarPedidoWeb(id){
     pedidosWeb=pedidosWeb.filter(x=>x.id!==id);
     updateWebBadge();
     renderPedidosWeb();
-    toast('✅ '+p.nombre+' enviado al repartidor · falta validar el pago');
+    toast('✅ '+p.nombre+' agregado a la semana '+wk.label+' · falta validar el pago');
   };
 
-  if(db && wkIndex>=0){
-    // Releer las filas frescas de la nube para no pisar pagos recientes de la contadora
-    db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').once('value').then(snap=>{
-      let rowsNube=snap.val();
-      rowsNube=Array.isArray(rowsNube)?rowsNube.filter(Boolean):(rowsNube?Object.values(rowsNube).filter(Boolean):[]);
+  if(db){
+    // Releer las filas frescas de la nube para no pisar pagos recientes de la contadora,
+    // usando la posición que la semana tiene EN LA NUBE (ver buscarSemanaEnNube)
+    buscarSemanaEnNube(wk).then(enNube=>{
+      if(!enNube){ wk.rows.push(nuevaFila); lsSet('dds_weeks', weeks); renderRows(); saveAll(); confirmarWeb(); return; }
+      const rowsNube=enNube.rows;
       rowsNube.push(nuevaFila);
       // reflejar en memoria local
       wk.rows=rowsNube;
       lsSet('dds_weeks', weeks);
       // guardar el arreglo completo ya fusionado
-      db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows').set(JSON.parse(JSON.stringify(rowsNube)))
+      db.ref(DB_PATH+'/dds_weeks/'+enNube.clave+'/rows').set(JSON.parse(JSON.stringify(rowsNube)))
         .then(()=>{ renderRows(); confirmarWeb(); })
         .catch(()=>{ renderRows(); confirmarWeb(); });
     }).catch(()=>{

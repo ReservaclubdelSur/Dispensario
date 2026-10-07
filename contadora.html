@@ -325,18 +325,29 @@ function semanaActualObj(){
   return [...weeks].sort((a,b)=>toD(b.label)-toD(a.label))[0];
 }
 
+// Las semanas y las filas se guardan en listas. Acá se les saca los huecos para mostrarlas,
+// así que la posición en pantalla puede no ser la misma que en la base. Antes se guardaba
+// con la posición de pantalla: si no coincidían, se marcaba como pagado a OTRA persona.
+// Ahora se busca la posición de verdad, por su identificador, justo antes de guardar.
 function togglePago(rowId){
   const wk=semanaActualObj(); if(!wk) return;
-  const wkIndex=weeks.findIndex(w=>w.label===wk.label);
-  if(wkIndex<0) return;
-  const idx=(wk.rows||[]).findIndex(r=>String(r.id)===String(rowId));
-  if(idx<0) return;
-  const r=wk.rows[idx]; if(!r) return;
-  r.pagado=!r.pagado;
-  // guardar solo esa fila en Firebase (por índice real actual)
-  db.ref(DB_PATH+'/dds_weeks/'+wkIndex+'/rows/'+idx+'/pagado').set(!!r.pagado)
-    .then(()=>render())
-    .catch(e=>alert('Error: '+e.message));
+  const r=(wk.rows||[]).find(x=>String(x.id)===String(rowId)); if(!r) return;
+  const valor=!r.pagado;
+
+  db.ref(DB_PATH+'/dds_weeks').once('value').then(snap=>{
+    const raw=snap.val();
+    if(!raw) throw new Error('no se pudo leer la semana');
+    const claves = Array.isArray(raw) ? raw.map((_,i)=>i) : Object.keys(raw);
+    let k = claves.find(c=>raw[c] && wk.id && raw[c].id===wk.id);
+    if(k===undefined) k = claves.find(c=>raw[c] && raw[c].label===wk.label);
+    if(k===undefined) throw new Error('no se encontró la semana');
+    const rows=raw[k].rows;
+    const rowKeys = Array.isArray(rows) ? rows.map((_,i)=>i) : (rows?Object.keys(rows):[]);
+    const rk = rowKeys.find(c=>rows[c] && String(rows[c].id)===String(rowId));
+    if(rk===undefined) throw new Error('no se encontró el pedido');
+    return db.ref(DB_PATH+'/dds_weeks/'+k+'/rows/'+rk+'/pagado').set(valor);
+  }).then(()=>{ r.pagado=valor; render(); })
+    .catch(e=>alert('No se pudo guardar: '+(e&&e.message?e.message:'intenta de nuevo')));
 }
 
 function exportarPDF(){
