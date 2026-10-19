@@ -3153,15 +3153,8 @@ function checkRestaurar(){
   }
 }
 
-// Aviso al cerrar
-window.addEventListener('beforeunload', e=>{
-  const weeks = lsGet('dds_weeks',[]);
-  if(weeks.length>0){
-    e.preventDefault();
-    e.returnValue='¿Guardaste tu backup? Haz clic en 💾 Guardar antes de cerrar.';
-    return e.returnValue;
-  }
-});
+// Antes avisábamos al cerrar para que no se olvidara el backup. Ya no hace
+// falta: los datos se guardan solos en la nube, y el cartel se quedaba pegado.
 // Al cargar, restaurar datos incrustados si localStorage está vacío
 (function(){
   if(window.__DDS_DATOS__){
