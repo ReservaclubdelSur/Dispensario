@@ -2067,9 +2067,19 @@ function cargarPedidosWeb(cb){
 // Acá se rehace desde los pedidos de verdad, así cualquier descuadre se corrige solo.
 function republicarTopesWeb(pedidos){
   if(!db) return;
+  // El tope de una cepa es POR SEMANA, así que solo cuentan los pedidos de la semana en curso.
+  // Antes se sumaban todos los pedidos web guardados: los de semanas anteriores seguían
+  // descontando del tope y la cepa desaparecía del menú aunque no se hubiera pedido nada
+  // esta semana (pasó el 23-11-2026 con Candy Ice: tope 40 g y 103 g arrastrados).
+  const destino=semanaDestinoWeb();
+  const etiqueta=destino?destino.label:'';
   const topes={};
   Object.entries(pedidos||{}).forEach(([id,p])=>{
     if(!p || p.estado==='descartado') return;
+    // Ya procesado: cuenta solo si quedó en la semana en curso. Los pendientes cuentan
+    // siempre, porque cuando los aceptes van a caer en esa misma semana.
+    const procesado = p.estado==='confirmado' || p.estado==='agregado';
+    if(procesado && p.semanaLabel!==etiqueta) return;
     const q={};
     Object.entries(p.qtys||{}).forEach(([pid,g])=>{ if((parseFloat(g)||0)>0) q[pid]=parseFloat(g); });
     if(Object.keys(q).length) topes[id]=q;
@@ -2197,7 +2207,9 @@ function descartarPedidoWeb(id){
 }
 
 function marcarWebAgregado(id){
-  if(db) db.ref(DB_PATH+'/dds_pedidos_web/'+id+'/estado').set('agregado').catch(()=>{});
+  // Queda anotado a qué semana pertenece, para que el tope sepa si todavía cuenta
+  const destino=semanaDestinoWeb();
+  if(db) db.ref(DB_PATH+'/dds_pedidos_web/'+id).update({estado:'agregado', semanaLabel:(destino?destino.label:'')}).catch(()=>{});
   pedidosWeb=pedidosWeb.filter(x=>x.id!==id);
   updateWebBadge();
   renderPedidosWeb();
